@@ -1,0 +1,260 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============ CORE (tüm işletme türleri için ortak) ============
+
+model BusinessType {
+  id         String     @id @default(cuid())
+  key        String     @unique // ör: "restaurant"
+  name       String // ör: "Restoran / Kafe"
+  active     Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  businesses Business[]
+}
+
+enum OrderMode {
+  WAITER_ONLY // Sadece garson sipariş girer, müşteri QR menüyü sadece görür
+  CUSTOMER_QR // Müşteri QR ile kendi sipariş verir
+}
+
+model Business {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  name      String
+  typeId    String
+  type      BusinessType @relation(fields: [typeId], references: [id])
+  active    Boolean   @default(true)
+  orderMode OrderMode @default(WAITER_ONLY)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  users         User[]
+  features      BusinessFeature[]
+  tables        Table[]
+  categories    Category[]
+  products      Product[]
+  ingredients   Ingredient[]
+  orders        Order[]
+  payments      Payment[]
+  staffRequests StaffRequest[]
+  notifications Notification[]
+}
+
+// Özellik bayrakları — admin panelden işletme başına açılıp kapanır
+model BusinessFeature {
+  id         String  @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  featureKey String // ör: "ai_calorie", "ai_forecast", "ai_suggestion", "best_sellers", "kitchen_printer", "staff_requests", "stock"
+  enabled    Boolean @default(true)
+
+  @@unique([businessId, featureKey])
+}
+
+enum UserRole {
+  OWNER
+  STAFF
+}
+
+model User {
+  id           String   @id @default(cuid())
+  businessId   String
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  role         UserRole
+  name         String
+  email        String?  @unique // sadece OWNER için
+  passwordHash String? // sadece OWNER için
+  pin          String? // sadece STAFF için (4-6 hane, işletme içinde benzersiz)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  createdOrders  Order[]        @relation("OrderCreatedBy")
+  staffRequests  StaffRequest[]
+
+  @@unique([businessId, pin])
+}
+
+// ============ RESTORAN/KAFE MODÜLÜ ============
+
+model Table {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name       String // ör: "Masa 1", "Bahçe 3"
+  qrToken    String   @unique @default(uuid()) // QR URL'inde kullanılır
+  createdAt  DateTime @default(now())
+
+  orders Order[]
+
+  @@unique([businessId, name])
+}
+
+model Category {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name       String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  products Product[]
+
+  @@unique([businessId, name])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String
+  priceKurus  Int // fiyat kuruş cinsinden (₺125,50 → 12550)
+  imageUrl    String
+  description String?
+  active      Boolean  @default(true)
+
+  // AI kalori/alerjen çıktısı — işletme onaylayana kadar müşteriye gösterilmez
+  calories    Int?
+  allergens   String[] @default([])
+  aiApproved  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recipeItems RecipeItem[]
+  orderItems  OrderItem[]
+
+  @@unique([businessId, slug])
+}
+
+model Ingredient {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name       String
+  unit       String // "g", "kg", "adet", "lt", "ml"
+  quantity   Float    @default(0) // mevcut stok miktarı
+  createdAt  DateTime @default(now())
+
+  recipeItems RecipeItem[]
+
+  @@unique([businessId, name])
+}
+
+model RecipeItem {
+  id           String     @id @default(cuid())
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  amount       Float // ürün başına gereken miktar (ingredient.unit cinsinden)
+
+  @@unique([productId, ingredientId])
+}
+
+enum OrderStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum OrderSource {
+  WAITER
+  CUSTOMER
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  businessId  String
+  business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  tableId     String
+  table       Table       @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  status      OrderStatus @default(OPEN)
+  source      OrderSource
+  createdById String? // garson girdiyse User id, müşteri girdiyse null
+  createdBy   User?       @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime    @default(now())
+  closedAt    DateTime?
+
+  items    OrderItem[]
+  payments Payment[]
+
+  @@index([businessId, status])
+  @@index([businessId, createdAt])
+}
+
+model OrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String?
+  product      Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName  String // sipariş anındaki ad (snapshot)
+  unitKurus    Int // sipariş anındaki birim fiyat (snapshot)
+  quantity     Int
+  paidQuantity Int      @default(0) // kısmi ödeme: kaç adedi ödendi
+  delivered    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  businessId  String
+  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  orderId     String
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method      PaymentMethod
+  amountKurus Int
+  createdAt   DateTime      @default(now())
+
+  @@index([businessId, createdAt])
+}
+
+enum RequestStatus {
+  PENDING
+  DONE
+}
+
+model StaffRequest {
+  id          String        @id @default(cuid())
+  businessId  String
+  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  text        String
+  status      RequestStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  resolvedAt  DateTime?
+
+  @@index([businessId, status])
+}
+
+enum NotificationType {
+  NEW_ORDER
+  NEW_REQUEST
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  businessId String
+  business   Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  message    String
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  @@index([businessId, createdAt])
+}

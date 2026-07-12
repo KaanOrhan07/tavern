@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  /* Tavern paleti: altın/krem + siyah zemin */
+  --color-ink: #0a0a0a;
+  --color-ink-soft: #141311;
+  --color-ink-card: #1b1916;
+  --color-ink-line: #2b2823;
+  --color-gold: #d4a857;
+  --color-gold-light: #e8c88a;
+  --color-gold-dark: #a87f38;
+  --color-cream: #f5efe0;
+  --color-cream-dim: #b8b0a0;
+  --color-ok: #6fbf73;
+  --color-warn: #e0a04a;
+  --color-danger: #d96a5a;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-cream);
+}
+
+/* Sade, ince kaydırma çubuğu */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-line) transparent;
+}

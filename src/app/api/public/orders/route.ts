@@ -1,0 +1,48 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { addItemsToTable } from "@/lib/orders";
+
+const schema = z.object({
+  qrToken: z.string().min(1),
+  items: z
+    .array(z.object({ productId: z.string().min(1), quantity: z.number().int().min(1).max(20) }))
+    .min(1),
+});
+
+// Müşteri QR siparişi (yalnızca CUSTOMER_QR modunda)
+export async function POST(request: Request) {
+  const body = schema.safeParse(await request.json().catch(() => null));
+  if (!body.success) {
+    return NextResponse.json({ error: "Geçersiz istek" }, { status: 400 });
+  }
+
+  const table = await prisma.table.findUnique({
+    where: { qrToken: body.data.qrToken },
+    include: { business: true },
+  });
+  if (!table || !table.business.active) {
+    return NextResponse.json({ error: "Masa bulunamadı" }, { status: 404 });
+  }
+  if (table.business.orderMode !== "CUSTOMER_QR") {
+    return NextResponse.json(
+      { error: "Bu işletmede sipariş garson aracılığıyla alınır" },
+      { status: 403 }
+    );
+  }
+
+  try {
+    await addItemsToTable({
+      businessId: table.businessId,
+      tableId: table.id,
+      items: body.data.items,
+      source: "CUSTOMER",
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Sipariş verilemedi" },
+      { status: 400 }
+    );
+  }
+}
