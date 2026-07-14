@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Card } from "@/components/ui";
+import Image from "next/image";
+import { Badge, Button, Card, Input, Label } from "@/components/ui";
+import { APP_VERSION } from "@/lib/version";
 import {
   connectBluetoothPrinter,
   connectUsbPrinter,
@@ -11,10 +13,16 @@ import {
 } from "@/lib/printer";
 
 export function SettingsView({
+  businessName,
+  logoUrl,
+  bannerUrl,
   orderMode,
   theme,
   printerEnabled,
 }: {
+  businessName: string;
+  logoUrl: string | null;
+  bannerUrl: string | null;
   orderMode: "WAITER_ONLY" | "CUSTOMER_QR";
   theme: "LIGHT" | "DARK";
   printerEnabled: boolean;
@@ -22,7 +30,15 @@ export function SettingsView({
   const router = useRouter();
   const [mode, setMode] = useState(orderMode);
   const [menuTheme, setMenuTheme] = useState(theme);
+  const [name, setName] = useState(businessName);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bulkMode, setBulkMode] = useState<"percent" | "fixed">("percent");
+  const [bulkValue, setBulkValue] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingBulk, setSavingBulk] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [okMessage, setOkMessage] = useState<string | null>(null);
   const [printerStatus, setPrinterStatus] = useState<"idle" | "connected" | "error">("idle");
   const [printerSupported, setPrinterSupported] = useState(true);
 
@@ -34,6 +50,7 @@ export function SettingsView({
 
   async function saveMode(next: "WAITER_ONLY" | "CUSTOMER_QR") {
     setMode(next);
+    setError(null);
     const res = await fetch("/api/panel/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -48,6 +65,7 @@ export function SettingsView({
 
   async function saveTheme(next: "LIGHT" | "DARK") {
     setMenuTheme(next);
+    setError(null);
     const res = await fetch("/api/panel/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -58,6 +76,66 @@ export function SettingsView({
       setError("Menü teması güncellenemedi");
     }
     router.refresh();
+  }
+
+  async function saveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingProfile(true);
+    setError(null);
+    setOkMessage(null);
+    const fd = new FormData();
+    if (name.trim() && name.trim() !== businessName) fd.set("name", name.trim());
+    if (logoFile) fd.set("logo", logoFile);
+    if (bannerFile) fd.set("banner", bannerFile);
+    if ([...fd.keys()].length === 0) {
+      setSavingProfile(false);
+      return;
+    }
+    const res = await fetch("/api/panel/profile", { method: "POST", body: fd });
+    if (res.ok) {
+      setLogoFile(null);
+      setBannerFile(null);
+      setOkMessage("Profil güncellendi");
+      router.refresh();
+    } else {
+      const data = await res.json().catch(() => null);
+      setError(data?.error ?? "Profil güncellenemedi");
+    }
+    setSavingProfile(false);
+  }
+
+  async function applyBulkPrice(e: React.FormEvent) {
+    e.preventDefault();
+    const value = Number(bulkValue);
+    if (!value || value <= 0) return;
+    if (bulkMode === "percent" && value > 100) {
+      setError("Yüzde zam en fazla %100 olabilir");
+      return;
+    }
+    if (!confirm(`Tüm ürün fiyatlarına ${bulkMode === "percent" ? `%${value}` : `₺${(value / 100).toFixed(2)}`} zam uygulanacak. Emin misiniz?`)) {
+      return;
+    }
+    setSavingBulk(true);
+    setError(null);
+    setOkMessage(null);
+    const res = await fetch("/api/panel/products/bulk-price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: bulkMode,
+        value: bulkMode === "percent" ? value : Math.round(value * 100),
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setOkMessage(`${data.updated} ürünün fiyatı güncellendi`);
+      setBulkValue("");
+      router.refresh();
+    } else {
+      const data = await res.json().catch(() => null);
+      setError(data?.error ?? "Toplu zam uygulanamadı");
+    }
+    setSavingBulk(false);
   }
 
   async function connectPrinter(kind: "bluetooth" | "usb") {
@@ -137,6 +215,107 @@ export function SettingsView({
           {error}
         </p>
       )}
+      {okMessage && (
+        <p className="rounded-lg border border-ok/40 bg-ok/10 px-4 py-2.5 text-sm text-ok">
+          {okMessage}
+        </p>
+      )}
+
+      <Card>
+        <p className="mb-1 font-medium">İşletme Profili</p>
+        <p className="mb-4 text-xs text-cream-dim">
+          Müşteri QR menüsünde görünen ad, logo ve banner.
+        </p>
+        <form onSubmit={saveProfile} className="space-y-4">
+          <div>
+            <Label>İşletme Adı</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} required />
+          </div>
+          <div className="flex flex-wrap gap-4">
+            <div>
+              <Label>Logo</Label>
+              {logoUrl && (
+                <Image
+                  src={logoUrl}
+                  alt="Logo"
+                  width={64}
+                  height={64}
+                  className="mb-2 h-14 w-14 rounded-lg object-cover"
+                />
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+                className="block text-sm text-cream-dim"
+              />
+            </div>
+            <div>
+              <Label>Banner</Label>
+              {bannerUrl && (
+                <Image
+                  src={bannerUrl}
+                  alt="Banner"
+                  width={160}
+                  height={64}
+                  className="mb-2 h-14 w-40 rounded-lg object-cover"
+                />
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setBannerFile(e.target.files?.[0] ?? null)}
+                className="block text-sm text-cream-dim"
+              />
+            </div>
+          </div>
+          <Button type="submit" disabled={savingProfile}>
+            {savingProfile ? "Kaydediliyor..." : "Profili Kaydet"}
+          </Button>
+        </form>
+      </Card>
+
+      <Card>
+        <p className="mb-1 font-medium">Toplu Fiyat Artışı</p>
+        <p className="mb-4 text-xs text-cream-dim">
+          Tüm aktif ürünlere tek seferde zam uygular.
+        </p>
+        <form onSubmit={applyBulkPrice} className="flex flex-wrap items-end gap-3">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkMode("percent")}
+              className={`rounded-lg border px-3 py-2 text-sm cursor-pointer ${
+                bulkMode === "percent" ? "border-gold bg-gold/10" : "border-ink-line"
+              }`}
+            >
+              Yüzde (%)
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkMode("fixed")}
+              className={`rounded-lg border px-3 py-2 text-sm cursor-pointer ${
+                bulkMode === "fixed" ? "border-gold bg-gold/10" : "border-ink-line"
+              }`}
+            >
+              Sabit (₺)
+            </button>
+          </div>
+          <Input
+            type="number"
+            step="any"
+            min={0}
+            value={bulkValue}
+            onChange={(e) => setBulkValue(e.target.value)}
+            placeholder={bulkMode === "percent" ? "ör: 10" : "ör: 5.00"}
+            className="w-32"
+            required
+          />
+          <Button type="submit" disabled={savingBulk}>
+            {savingBulk ? "Uygulanıyor..." : "Zam Uygula"}
+          </Button>
+        </form>
+      </Card>
 
       <Card>
         <p className="mb-1 font-medium">Sipariş Modu</p>
@@ -150,7 +329,7 @@ export function SettingsView({
           {modeOption(
             "CUSTOMER_QR",
             "Müşteri QR Aktif",
-            "Müşteri masadaki QR ile kendi siparişini verir. Garson sipariş giremez ama masaları görebilir."
+            "Müşteri masadaki QR ile kendi siparişini verir."
           )}
         </div>
       </Card>
@@ -176,27 +355,30 @@ export function SettingsView({
           </div>
           {!printerSupported ? (
             <p className="text-sm text-warn">
-              Bu tarayıcı yazıcı bağlantısını desteklemiyor. Chrome veya Edge kullanın
-              (iOS Safari desteklenmez).
+              Bu tarayıcı yazıcı bağlantısını desteklemiyor. Chrome veya Edge kullanın.
             </p>
           ) : (
-            <>
-              <p className="mb-3 text-xs text-cream-dim">
-                Termal yazıcınızı Bluetooth veya USB ile bağlayın. Garson siparişi
-                girildiğinde mutfak fişi otomatik basılır.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" className="min-h-11" onClick={() => connectPrinter("bluetooth")}>
-                  Bluetooth ile Bağlan
-                </Button>
-                <Button variant="secondary" className="min-h-11" onClick={() => connectPrinter("usb")}>
-                  USB ile Bağlan
-                </Button>
-              </div>
-            </>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" className="min-h-11" onClick={() => connectPrinter("bluetooth")}>
+                Bluetooth ile Bağlan
+              </Button>
+              <Button variant="secondary" className="min-h-11" onClick={() => connectPrinter("usb")}>
+                USB ile Bağlan
+              </Button>
+            </div>
           )}
         </Card>
       )}
+
+      <Card>
+        <p className="mb-1 font-medium">Sistem</p>
+        <div className="mt-2 space-y-1 text-sm text-cream-dim">
+          <p>
+            Sürüm: <span className="font-medium text-cream">Tavern {APP_VERSION}</span>
+          </p>
+          <p className="text-xs">Created by Digio Medya ve Yazılım</p>
+        </div>
+      </Card>
     </div>
   );
 }

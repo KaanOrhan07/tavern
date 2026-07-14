@@ -24,6 +24,9 @@ export default async function SettingsPage({
 
   return (
     <SettingsView
+      businessName={business.name}
+      logoUrl={business.logoUrl}
+      bannerUrl={business.bannerUrl}
       orderMode={business.orderMode}
       theme={business.theme}
       printerEnabled={features.kitchen_printer}

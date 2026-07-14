@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   },
   // Büyük paketlerin import süresini kısaltır
   experimental: {
-    optimizePackageImports: ["@google/genai", "qrcode"],
+    optimizePackageImports: ["qrcode"],
   },
 };
 

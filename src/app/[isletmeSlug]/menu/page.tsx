@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isFeatureEnabled } from "@/lib/features";
+import { getTopSellingProducts } from "@/lib/best-sellers";
+import { pickDailyProduct } from "@/lib/daily-pick";
 import { isOutOfStock } from "@/lib/stock";
 import { SuggestionWidget } from "@/components/musteri/SuggestionWidget";
+import { DailyPick } from "@/components/musteri/DailyPick";
 import { MenuList } from "@/components/musteri/MenuList";
 
 export const dynamic = "force-dynamic";
@@ -21,57 +24,86 @@ export default async function PublicMenuPage({
   });
   if (!business || !business.active) notFound();
 
-  // ?masa=<qrToken> ile gelindiyse (masa sayfasından "Menü" linki) ve sipariş
-  // müşteri QR moduyla açıksa, bu sayfada da sepete ekleme kontrollerini göster.
-  const [categories, suggestionEnabled, stockEnabled, table] = await Promise.all([
-    prisma.category.findMany({
-      where: { businessId: business.id },
-      orderBy: { sortOrder: "asc" },
-      include: {
-        products: {
-          where: { active: true },
-          orderBy: { name: "asc" },
-          include: {
-            recipeItems: {
-              select: {
-                amount: true,
-                ingredient: { select: { quantity: true, unit: true } },
+  const [categories, suggestionEnabled, stockEnabled, bestsellersEnabled, table] =
+    await Promise.all([
+      prisma.category.findMany({
+        where: { businessId: business.id },
+        orderBy: { sortOrder: "asc" },
+        include: {
+          products: {
+            where: { active: true },
+            orderBy: { name: "asc" },
+            include: {
+              recipeItems: {
+                select: {
+                  amount: true,
+                  ingredient: { select: { quantity: true, unit: true } },
+                },
               },
             },
           },
         },
-      },
-    }),
-    isFeatureEnabled(business.id, "ai_suggestion"),
-    isFeatureEnabled(business.id, "stock"),
-    masa
-      ? prisma.table.findUnique({ where: { qrToken: masa } })
-      : Promise.resolve(null),
-  ]);
+      }),
+      isFeatureEnabled(business.id, "ai_suggestion"),
+      isFeatureEnabled(business.id, "stock"),
+      isFeatureEnabled(business.id, "best_sellers"),
+      masa ? prisma.table.findUnique({ where: { qrToken: masa } }) : Promise.resolve(null),
+    ]);
 
   const canOrder =
     business.orderMode === "CUSTOMER_QR" && table !== null && table.businessId === business.id;
   const qrToken = canOrder ? masa! : null;
 
+  const mapProduct = (p: (typeof categories)[0]["products"][0]) => ({
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    priceKurus: p.priceKurus,
+    imageUrl: p.imageUrl,
+    allergens: p.allergens,
+    description: p.description,
+    outOfStock: stockEnabled && isOutOfStock(p),
+  });
+
   const visibleCategories = categories
     .filter((c) => c.products.length > 0)
     .map((c) => ({
-      ...c,
-      products: c.products.map((p) => ({ ...p, outOfStock: stockEnabled && isOutOfStock(p) })),
+      id: c.id,
+      name: c.name,
+      products: c.products.map(mapProduct),
     }));
+
+  const allProducts = visibleCategories.flatMap((c) => c.products);
+  const dailyProduct = pickDailyProduct(allProducts, business.id);
+
+  let menuCategories = visibleCategories;
+  if (bestsellersEnabled) {
+    const top = await getTopSellingProducts(business.id, 5);
+    const bestsellerProducts = top.map((p) => mapProduct(p));
+    if (bestsellerProducts.length > 0) {
+      menuCategories = [
+        { id: "__bestsellers", name: "Çok Satanlar", products: bestsellerProducts },
+        ...visibleCategories,
+      ];
+    }
+  }
 
   return (
     <div className="space-y-8 pb-32">
       <h1 className="text-lg font-semibold">Menü</h1>
 
+      {dailyProduct && (
+        <DailyPick product={dailyProduct} isletmeSlug={isletmeSlug} masa={masa} />
+      )}
+
       {suggestionEnabled && <SuggestionWidget slug={isletmeSlug} />}
 
-      {visibleCategories.length === 0 ? (
+      {menuCategories.length === 0 ? (
         <p className="py-12 text-center text-sm text-cream-dim">
           Menü henüz hazırlanıyor.
         </p>
       ) : (
-        <MenuList isletmeSlug={isletmeSlug} categories={visibleCategories} qrToken={qrToken} />
+        <MenuList isletmeSlug={isletmeSlug} categories={menuCategories} qrToken={qrToken} />
       )}
     </div>
   );

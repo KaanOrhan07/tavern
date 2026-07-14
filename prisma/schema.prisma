@@ -37,6 +37,8 @@ model Business {
   active    Boolean   @default(true)
   orderMode OrderMode @default(WAITER_ONLY)
   theme     Theme     @default(DARK) // Müşteri QR menüsünün teması
+  logoUrl   String?   // İşletme logosu (müşteri menüsü)
+  bannerUrl String?   // İşletme banner görseli (müşteri menüsü)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
