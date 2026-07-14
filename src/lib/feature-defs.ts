@@ -7,6 +7,8 @@ export const FEATURES = [
   { key: "stock", name: "Stok & Reçete Sistemi" },
   { key: "staff_requests", name: "Çalışan Talep Sistemi" },
   { key: "kitchen_printer", name: "Mutfak Yazıcısı" },
+  { key: "loyalty_points", name: "Sadakat / Puan Sistemi" },
+  { key: "product_variants", name: "Ürün Varyantları" },
 ] as const;
 
 export type FeatureKey = (typeof FEATURES)[number]["key"];

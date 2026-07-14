@@ -10,6 +10,26 @@ const recipeSchema = z.array(
   z.object({ ingredientId: z.string().min(1), amount: z.number().positive() })
 );
 
+const variantSchema = z.array(
+  z.object({
+    name: z.string().min(1),
+    priceKurus: z.number().int().positive(),
+  })
+);
+
+async function saveVariants(productId: string, variants: z.infer<typeof variantSchema>) {
+  await prisma.productVariant.deleteMany({ where: { productId } });
+  if (variants.length === 0) return;
+  await prisma.productVariant.createMany({
+    data: variants.map((v, index) => ({
+      productId,
+      name: v.name,
+      priceKurus: v.priceKurus,
+      sortOrder: index,
+    })),
+  });
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -74,6 +94,14 @@ export async function PATCH(
       data: recipe.data.map((r) => ({ ...r, productId: id })),
     });
     recipeChanged = true;
+  }
+
+  if (form.has("variants")) {
+    const variants = variantSchema.safeParse(JSON.parse(String(form.get("variants"))));
+    if (!variants.success) {
+      return NextResponse.json({ error: "Geçersiz varyantlar" }, { status: 400 });
+    }
+    await saveVariants(id, variants.data);
   }
 
   const product = await prisma.product.update({ where: { id }, data });

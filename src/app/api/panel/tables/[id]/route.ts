@@ -31,6 +31,8 @@ export async function GET(
       ? {
           id: open.id,
           createdAt: open.createdAt,
+          customerPhone: open.customerPhone,
+          loyaltyDiscountKurus: open.loyaltyDiscountKurus,
           items: open.items.map((i) => ({
             id: i.id,
             productName: i.productName,

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getPanelSessionFor } from "@/lib/auth";
+import { isFeatureEnabled } from "@/lib/features";
 import { MenuManager } from "@/components/panel/MenuManager";
 
 export const dynamic = "force-dynamic";
@@ -15,14 +16,17 @@ export default async function MenuPage({
   if (!session) redirect(`/panel/${isletmeSlug}/giris`);
   if (session.role !== "owner") redirect(`/panel/${isletmeSlug}/masalar`);
 
-  const [categories, ingredients] = await Promise.all([
+  const [categories, ingredients, variantsEnabled] = await Promise.all([
     prisma.category.findMany({
       where: { businessId: session.businessId },
       orderBy: { sortOrder: "asc" },
       include: {
         products: {
           orderBy: { name: "asc" },
-          include: { recipeItems: true },
+          include: {
+            recipeItems: true,
+            variants: { orderBy: { sortOrder: "asc" } },
+          },
         },
       },
     }),
@@ -30,10 +34,12 @@ export default async function MenuPage({
       where: { businessId: session.businessId },
       orderBy: { name: "asc" },
     }),
+    isFeatureEnabled(session.businessId, "product_variants"),
   ]);
 
   return (
     <MenuManager
+      variantsEnabled={variantsEnabled}
       categories={categories.map((c) => ({
         id: c.id,
         name: c.name,
@@ -52,6 +58,7 @@ export default async function MenuPage({
             ingredientId: r.ingredientId,
             amount: r.amount,
           })),
+          variants: p.variants.map((v) => ({ name: v.name, priceKurus: v.priceKurus })),
         })),
       }))}
       ingredients={ingredients.map((i) => ({

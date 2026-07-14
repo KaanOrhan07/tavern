@@ -4,6 +4,7 @@ import { isFeatureEnabled } from "@/lib/features";
 import { getTopSellingProducts } from "@/lib/best-sellers";
 import { pickDailyProduct } from "@/lib/daily-pick";
 import { isOutOfStock } from "@/lib/stock";
+import { resolveProductCart } from "@/lib/menu-products";
 import { SuggestionWidget } from "@/components/musteri/SuggestionWidget";
 import { DailyPick } from "@/components/musteri/DailyPick";
 import { MenuList } from "@/components/musteri/MenuList";
@@ -24,7 +25,7 @@ export default async function PublicMenuPage({
   });
   if (!business || !business.active) notFound();
 
-  const [categories, suggestionEnabled, stockEnabled, bestsellersEnabled, table] =
+  const [categories, suggestionEnabled, stockEnabled, bestsellersEnabled, variantsEnabled, loyaltyEnabled, table] =
     await Promise.all([
       prisma.category.findMany({
         where: { businessId: business.id },
@@ -34,6 +35,7 @@ export default async function PublicMenuPage({
             where: { active: true },
             orderBy: { name: "asc" },
             include: {
+              variants: { where: { active: true }, orderBy: { sortOrder: "asc" } },
               recipeItems: {
                 select: {
                   amount: true,
@@ -47,6 +49,8 @@ export default async function PublicMenuPage({
       isFeatureEnabled(business.id, "ai_suggestion"),
       isFeatureEnabled(business.id, "stock"),
       isFeatureEnabled(business.id, "best_sellers"),
+      isFeatureEnabled(business.id, "product_variants"),
+      isFeatureEnabled(business.id, "loyalty_points"),
       masa ? prisma.table.findUnique({ where: { qrToken: masa } }) : Promise.resolve(null),
     ]);
 
@@ -54,16 +58,23 @@ export default async function PublicMenuPage({
     business.orderMode === "CUSTOMER_QR" && table !== null && table.businessId === business.id;
   const qrToken = canOrder ? masa! : null;
 
-  const mapProduct = (p: (typeof categories)[0]["products"][0]) => ({
-    id: p.id,
-    name: p.name,
-    slug: p.slug,
-    priceKurus: p.priceKurus,
-    imageUrl: p.imageUrl,
-    allergens: p.allergens,
-    description: p.description,
-    outOfStock: stockEnabled && isOutOfStock(p),
-  });
+  const mapProduct = (p: (typeof categories)[0]["products"][0]) => {
+    const cart = resolveProductCart(p, variantsEnabled);
+    return {
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      priceKurus: p.priceKurus,
+      imageUrl: p.imageUrl,
+      allergens: p.allergens,
+      description: p.description,
+      outOfStock: stockEnabled && isOutOfStock(p),
+      variants: cart.variants,
+      defaultCartKey: cart.defaultCartKey,
+      displayPriceKurus: cart.displayPriceKurus,
+      hasVariants: cart.hasVariants,
+    };
+  };
 
   const visibleCategories = categories
     .filter((c) => c.products.length > 0)
@@ -103,7 +114,12 @@ export default async function PublicMenuPage({
           Menü henüz hazırlanıyor.
         </p>
       ) : (
-        <MenuList isletmeSlug={isletmeSlug} categories={menuCategories} qrToken={qrToken} />
+        <MenuList
+          isletmeSlug={isletmeSlug}
+          categories={menuCategories}
+          qrToken={qrToken}
+          loyaltyEnabled={loyaltyEnabled}
+        />
       )}
     </div>
   );

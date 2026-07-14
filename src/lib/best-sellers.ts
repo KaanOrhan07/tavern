@@ -37,6 +37,7 @@ export async function getTopSellingProducts(
       name: { in: ranked.map((r) => r.productName) },
     },
     include: {
+      variants: { where: { active: true }, orderBy: { sortOrder: "asc" } },
       recipeItems: {
         select: {
           amount: true,

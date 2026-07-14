@@ -3,11 +3,17 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { addItemsToTable } from "@/lib/orders";
 
+const itemSchema = z.object({
+  productId: z.string().min(1),
+  quantity: z.number().int().min(1).max(20),
+  variantId: z.string().min(1).optional(),
+});
+
 const schema = z.object({
   qrToken: z.string().min(1),
-  items: z
-    .array(z.object({ productId: z.string().min(1), quantity: z.number().int().min(1).max(20) }))
-    .min(1),
+  items: z.array(itemSchema).min(1),
+  customerPhone: z.string().optional(),
+  redeemLoyalty: z.boolean().optional(),
 });
 
 // Müşteri QR siparişi (yalnızca CUSTOMER_QR modunda)
@@ -37,6 +43,8 @@ export async function POST(request: Request) {
       tableId: table.id,
       items: body.data.items,
       source: "CUSTOMER",
+      customerPhone: body.data.customerPhone,
+      redeemLoyalty: body.data.redeemLoyalty,
     });
     return NextResponse.json({ ok: true });
   } catch (e) {

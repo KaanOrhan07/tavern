@@ -10,6 +10,26 @@ const recipeSchema = z.array(
   z.object({ ingredientId: z.string().min(1), amount: z.number().positive() })
 );
 
+const variantSchema = z.array(
+  z.object({
+    name: z.string().min(1),
+    priceKurus: z.number().int().positive(),
+  })
+);
+
+async function saveVariants(productId: string, variants: z.infer<typeof variantSchema>) {
+  await prisma.productVariant.deleteMany({ where: { productId } });
+  if (variants.length === 0) return;
+  await prisma.productVariant.createMany({
+    data: variants.map((v, index) => ({
+      productId,
+      name: v.name,
+      priceKurus: v.priceKurus,
+      sortOrder: index,
+    })),
+  });
+}
+
 export async function POST(request: Request) {
   const ctx = await requirePanel({ ownerOnly: true });
   if (isGuardError(ctx)) return ctx;
@@ -25,6 +45,7 @@ export async function POST(request: Request) {
   const description = String(form.get("description") ?? "").trim() || null;
   const image = form.get("image");
   const recipeRaw = String(form.get("recipe") ?? "[]");
+  const variantsRaw = String(form.get("variants") ?? "[]");
 
   if (name.length < 1 || !categoryId || priceKurus === null) {
     return NextResponse.json({ error: "Eksik veya hatalı alanlar" }, { status: 400 });
@@ -83,6 +104,11 @@ export async function POST(request: Request) {
       recipeItems: { create: recipe.data },
     },
   });
+
+  const variants = variantSchema.safeParse(JSON.parse(variantsRaw));
+  if (variants.success && variants.data.length > 0) {
+    await saveVariants(product.id, variants.data);
+  }
 
   // Reçete kaydedildikten sonra AI hesaplaması yanıtı geciktirmesin;
   // yanıt gönderildikten sonra arka planda çalışır (onay beklemez)

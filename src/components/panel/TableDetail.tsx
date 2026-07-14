@@ -46,6 +46,7 @@ export function TableDetail({
 }) {
   const [items, setItems] = useState<OrderItem[] | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [loyaltyDiscountKurus, setLoyaltyDiscountKurus] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
@@ -67,6 +68,7 @@ export function TableDetail({
       const data = await res.json();
       setItems(data.order?.items ?? []);
       setOrderId(data.order?.id ?? null);
+      setLoyaltyDiscountKurus(data.order?.loyaltyDiscountKurus ?? 0);
     }
   }, [tableId]);
 
@@ -94,8 +96,8 @@ export function TableDetail({
       const item = list.find((i) => i.id === id);
       return s + (item ? item.unitKurus * qty : 0);
     }, 0);
-    return { total, remaining: total - paid, selected };
-  }, [items, paySelection]);
+    return { total, remaining: Math.max(0, total - paid - loyaltyDiscountKurus), selected };
+  }, [items, paySelection, loyaltyDiscountKurus]);
 
   // --- Sipariş ekleme ---
 
@@ -375,6 +377,14 @@ export function TableDetail({
                     {formatKurus(totals.total)}
                   </p>
                 </div>
+                {loyaltyDiscountKurus > 0 && (
+                  <div>
+                    <p className="text-xs text-cream-dim">Sadakat İndirimi</p>
+                    <p className="text-lg font-semibold text-ok">
+                      −{formatKurus(loyaltyDiscountKurus)}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {payMode ? (

@@ -52,6 +52,8 @@ model Business {
   payments      Payment[]
   staffRequests StaffRequest[]
   notifications Notification[]
+  loyaltyConfig  LoyaltyConfig?
+  loyaltyAccounts LoyaltyAccount[]
 }
 
 // Özellik bayrakları — admin panelden işletme başına açılıp kapanır
@@ -139,8 +141,23 @@ model Product {
 
   recipeItems RecipeItem[]
   orderItems  OrderItem[]
+  variants    ProductVariant[]
 
   @@unique([businessId, slug])
+}
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name       String // ör: "Küçük", "Orta", "Büyük"
+  priceKurus Int
+  sortOrder  Int      @default(0)
+  active     Boolean  @default(true)
+
+  orderItems OrderItem[]
+
+  @@unique([productId, name])
 }
 
 model Ingredient {
@@ -192,6 +209,10 @@ model Order {
   createdAt   DateTime    @default(now())
   closedAt    DateTime?
 
+  customerPhone        String? // sadakat için normalize telefon
+  loyaltyRedeemPoints  Int     @default(0) // kullanılan puan
+  loyaltyDiscountKurus Int     @default(0) // uygulanan indirim (kuruş)
+
   items    OrderItem[]
   payments Payment[]
 
@@ -205,7 +226,9 @@ model OrderItem {
   order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId    String?
   product      Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  productName  String // sipariş anındaki ad (snapshot)
+  variantId    String?
+  variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  productName  String // sipariş anındaki ad (snapshot, varyant adı dahil)
   unitKurus    Int // sipariş anındaki birim fiyat (snapshot)
   quantity     Int
   paidQuantity Int      @default(0) // kısmi ödeme: kaç adedi ödendi
@@ -266,4 +289,26 @@ model Notification {
   createdAt  DateTime         @default(now())
 
   @@index([businessId, createdAt])
+}
+
+// Sadakat ayarları — işletme başına (feature flag ile kontrol)
+model LoyaltyConfig {
+  businessId              String   @id
+  business                Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  pointsPerSpendKurus     Int      @default(100) // harcanan her 1 TL (100 kuruş) = 1 puan
+  redeemThresholdPoints   Int      @default(100) // indirim için gereken minimum puan
+  redeemDiscountPercent   Int      @default(10) // indirim yüzdesi
+  updatedAt               DateTime @updatedAt
+}
+
+model LoyaltyAccount {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  phone      String // normalize: 05xxxxxxxxx
+  points     Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([businessId, phone])
 }

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isFeatureEnabled } from "@/lib/features";
 import { isOutOfStock } from "@/lib/stock";
+import { resolveProductCart } from "@/lib/menu-products";
 import { CustomerTable } from "@/components/musteri/CustomerTable";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export default async function CustomerTablePage({
     notFound();
   }
 
-  const [categories, stockEnabled] = await Promise.all([
+  const [categories, stockEnabled, variantsEnabled, loyaltyEnabled] = await Promise.all([
     prisma.category.findMany({
       where: { businessId: table.businessId },
       orderBy: { sortOrder: "asc" },
@@ -29,13 +30,8 @@ export default async function CustomerTablePage({
         products: {
           where: { active: true },
           orderBy: { name: "asc" },
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            priceKurus: true,
-            imageUrl: true,
-            allergens: true,
+          include: {
+            variants: { where: { active: true }, orderBy: { sortOrder: "asc" } },
             recipeItems: {
               select: {
                 amount: true,
@@ -47,6 +43,8 @@ export default async function CustomerTablePage({
       },
     }),
     isFeatureEnabled(table.businessId, "stock"),
+    isFeatureEnabled(table.businessId, "product_variants"),
+    isFeatureEnabled(table.businessId, "loyalty_points"),
   ]);
 
   return (
@@ -55,15 +53,28 @@ export default async function CustomerTablePage({
       qrToken={table.qrToken}
       tableName={table.name}
       orderMode={table.business.orderMode}
+      loyaltyEnabled={loyaltyEnabled}
       categories={categories
         .filter((c) => c.products.length > 0)
         .map((c) => ({
           id: c.id,
           name: c.name,
-          products: c.products.map((p) => ({
-            ...p,
-            outOfStock: stockEnabled && isOutOfStock(p),
-          })),
+          products: c.products.map((p) => {
+            const cart = resolveProductCart(p, variantsEnabled);
+            return {
+              id: p.id,
+              name: p.name,
+              slug: p.slug,
+              priceKurus: p.priceKurus,
+              imageUrl: p.imageUrl,
+              allergens: p.allergens,
+              outOfStock: stockEnabled && isOutOfStock(p),
+              variants: cart.variants,
+              defaultCartKey: cart.defaultCartKey,
+              displayPriceKurus: cart.displayPriceKurus,
+              hasVariants: cart.hasVariants,
+            };
+          }),
         }))}
     />
   );

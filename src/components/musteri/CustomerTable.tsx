@@ -6,7 +6,10 @@ import { formatKurus } from "@/lib/utils";
 import { ProductImage } from "@/components/musteri/ProductImage";
 import { useCart } from "@/components/musteri/useCart";
 import { CartBar } from "@/components/musteri/CartBar";
+import { makeCartKey } from "@/lib/cart-key";
 import { CallWaiterButton } from "@/components/musteri/CallWaiterButton";
+
+type Variant = { id: string; name: string; priceKurus: number };
 
 type Product = {
   id: string;
@@ -16,6 +19,10 @@ type Product = {
   imageUrl: string;
   allergens: string[];
   outOfStock: boolean;
+  variants: Variant[];
+  defaultCartKey: string;
+  displayPriceKurus: number;
+  hasVariants: boolean;
 };
 type Category = { id: string; name: string; products: Product[] };
 type BillItem = {
@@ -32,12 +39,14 @@ export function CustomerTable({
   tableName,
   orderMode,
   categories,
+  loyaltyEnabled,
 }: {
   slug: string;
   qrToken: string;
   tableName: string;
   orderMode: "WAITER_ONLY" | "CUSTOMER_QR";
   categories: Category[];
+  loyaltyEnabled: boolean;
 }) {
   const canOrder = orderMode === "CUSTOMER_QR";
   const [bill, setBill] = useState<BillItem[] | null>(null);
@@ -67,10 +76,19 @@ export function CustomerTable({
     return { total, remaining: total - paid };
   }, [bill]);
 
-  const priceByProductId = useMemo(
-    () => new Map(categories.flatMap((c) => c.products).map((p) => [p.id, p.priceKurus])),
-    [categories]
-  );
+  const priceByLineKey = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of categories) {
+      for (const p of c.products) {
+        if (p.hasVariants) {
+          for (const v of p.variants) map.set(makeCartKey(p.id, v.id), v.priceKurus);
+        } else {
+          map.set(p.id, p.priceKurus);
+        }
+      }
+    }
+    return map;
+  }, [categories]);
 
   return (
     <div className="space-y-6 pb-32">
@@ -159,7 +177,9 @@ export function CustomerTable({
             {categories
               .find((c) => c.id === activeCategory)
               ?.products.map((product) => {
-                const qty = cart.get(product.id) ?? 0;
+                const cartKey = product.defaultCartKey;
+                const qty = cart.get(cartKey) ?? 0;
+                const quickAdd = !product.outOfStock && !product.hasVariants;
                 return (
                   <div
                     key={product.id}
@@ -179,7 +199,10 @@ export function CustomerTable({
                       >
                         {product.name}
                       </Link>
-                      <p className="text-xs text-gold">{formatKurus(product.priceKurus)}</p>
+                      <p className="text-xs text-gold">
+                        {product.hasVariants ? "Seçenekli · " : ""}
+                        {formatKurus(product.displayPriceKurus)}
+                      </p>
                       {product.outOfStock ? (
                         <p className="text-[11px] font-medium text-danger">Tükendi</p>
                       ) : (
@@ -190,13 +213,13 @@ export function CustomerTable({
                         )
                       )}
                     </div>
-                    {!product.outOfStock && (
+                    {quickAdd && (
                       <div className="flex items-center gap-2">
                         {qty > 0 && (
                           <>
                             <button
                               type="button"
-                              onClick={() => cartAdd(product.id, -1)}
+                              onClick={() => cartAdd(cartKey, -1)}
                               className="h-11 w-11 rounded-lg border border-ink-line text-lg cursor-pointer"
                             >
                               −
@@ -206,7 +229,7 @@ export function CustomerTable({
                         )}
                         <button
                           type="button"
-                          onClick={() => cartAdd(product.id, 1)}
+                          onClick={() => cartAdd(cartKey, 1)}
                           className="h-11 w-11 rounded-lg bg-gold text-lg font-bold text-ink cursor-pointer"
                         >
                           +
@@ -225,7 +248,9 @@ export function CustomerTable({
         <CartBar
           qrToken={qrToken}
           cart={cart}
-          priceByProductId={priceByProductId}
+          priceByLineKey={priceByLineKey}
+          businessSlug={slug}
+          loyaltyEnabled={loyaltyEnabled}
           onSubmitted={({ ok, message: text }) => {
             setMessage({ kind: ok ? "ok" : "error", text });
             if (ok) {

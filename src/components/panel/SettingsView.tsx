@@ -19,6 +19,7 @@ export function SettingsView({
   orderMode,
   theme,
   printerEnabled,
+  loyaltyEnabled,
 }: {
   businessName: string;
   logoUrl: string | null;
@@ -26,6 +27,7 @@ export function SettingsView({
   orderMode: "WAITER_ONLY" | "CUSTOMER_QR";
   theme: "LIGHT" | "DARK";
   printerEnabled: boolean;
+  loyaltyEnabled: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState(orderMode);
@@ -37,6 +39,10 @@ export function SettingsView({
   const [bulkValue, setBulkValue] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingBulk, setSavingBulk] = useState(false);
+  const [loyaltySpend, setLoyaltySpend] = useState("100");
+  const [loyaltyThreshold, setLoyaltyThreshold] = useState("100");
+  const [loyaltyDiscount, setLoyaltyDiscount] = useState("10");
+  const [savingLoyalty, setSavingLoyalty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
   const [printerStatus, setPrinterStatus] = useState<"idle" | "connected" | "error">("idle");
@@ -47,6 +53,18 @@ export function SettingsView({
     setPrinterSupported(isPrinterSupported());
     setPrinterStatus(isPrinterConnected() ? "connected" : "idle");
   }, []);
+
+  useEffect(() => {
+    if (!loyaltyEnabled) return;
+    fetch("/api/panel/loyalty")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.config) return;
+        setLoyaltySpend(String(data.config.pointsPerSpendKurus));
+        setLoyaltyThreshold(String(data.config.redeemThresholdPoints));
+        setLoyaltyDiscount(String(data.config.redeemDiscountPercent));
+      });
+  }, [loyaltyEnabled]);
 
   async function saveMode(next: "WAITER_ONLY" | "CUSTOMER_QR") {
     setMode(next);
@@ -102,6 +120,24 @@ export function SettingsView({
       setError(data?.error ?? "Profil güncellenemedi");
     }
     setSavingProfile(false);
+  }
+
+  async function saveLoyalty(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingLoyalty(true);
+    setError(null);
+    const res = await fetch("/api/panel/loyalty", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pointsPerSpendKurus: Number(loyaltySpend),
+        redeemThresholdPoints: Number(loyaltyThreshold),
+        redeemDiscountPercent: Number(loyaltyDiscount),
+      }),
+    });
+    if (!res.ok) setError("Sadakat ayarları kaydedilemedi");
+    else setOkMessage("Sadakat ayarları güncellendi");
+    setSavingLoyalty(false);
   }
 
   async function applyBulkPrice(e: React.FormEvent) {
@@ -316,6 +352,52 @@ export function SettingsView({
           </Button>
         </form>
       </Card>
+
+      {loyaltyEnabled && (
+        <Card>
+          <p className="mb-1 font-medium">Sadakat / Puan Sistemi</p>
+          <p className="mb-4 text-xs text-cream-dim">
+            Müşteri telefonu ile puan biriktirir; eşik puana ulaşınca indirim kullanabilir.
+          </p>
+          <form onSubmit={saveLoyalty} className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <Label>Puan / harcama (kuruş)</Label>
+              <Input
+                type="number"
+                min={1}
+                value={loyaltySpend}
+                onChange={(e) => setLoyaltySpend(e.target.value)}
+                required
+              />
+              <p className="mt-1 text-[11px] text-cream-dim">100 = her 1 TL için 1 puan</p>
+            </div>
+            <div>
+              <Label>İndirim eşiği (puan)</Label>
+              <Input
+                type="number"
+                min={1}
+                value={loyaltyThreshold}
+                onChange={(e) => setLoyaltyThreshold(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label>İndirim (%)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={100}
+                value={loyaltyDiscount}
+                onChange={(e) => setLoyaltyDiscount(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" disabled={savingLoyalty} className="sm:col-span-3">
+              {savingLoyalty ? "Kaydediliyor..." : "Sadakat Ayarlarını Kaydet"}
+            </Button>
+          </form>
+        </Card>
+      )}
 
       <Card>
         <p className="mb-1 font-medium">Sipariş Modu</p>

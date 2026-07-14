@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatKurus } from "@/lib/utils";
 import { isFeatureEnabled } from "@/lib/features";
 import { isOutOfStock } from "@/lib/stock";
+import { buildPriceEntries } from "@/lib/menu-products";
 import { ProductImage } from "@/components/musteri/ProductImage";
 import { ProductAddToCart } from "@/components/musteri/ProductAddToCart";
 
@@ -28,6 +29,7 @@ export default async function PublicProductPage({
     where: { businessId_slug: { businessId: business.id, slug: urunSlug } },
     include: {
       category: { select: { name: true } },
+      variants: { where: { active: true }, orderBy: { sortOrder: "asc" } },
       recipeItems: {
         include: { ingredient: { select: { name: true, quantity: true, unit: true } } },
       },
@@ -35,9 +37,15 @@ export default async function PublicProductPage({
   });
   if (!product || !product.active) notFound();
 
-  const [table, stockEnabled] = await Promise.all([
+  const [table, stockEnabled, variantsEnabled, loyaltyEnabled, allProducts] = await Promise.all([
     masa ? prisma.table.findUnique({ where: { qrToken: masa } }) : Promise.resolve(null),
     isFeatureEnabled(business.id, "stock"),
+    isFeatureEnabled(business.id, "product_variants"),
+    isFeatureEnabled(business.id, "loyalty_points"),
+    prisma.product.findMany({
+      where: { businessId: business.id, active: true },
+      include: { variants: { where: { active: true }, orderBy: { sortOrder: "asc" } } },
+    }),
   ]);
   const outOfStock = stockEnabled && isOutOfStock(product);
   const canOrder =
@@ -119,17 +127,13 @@ export default async function PublicProductPage({
         <ProductAddToCart
           qrToken={masa!}
           productId={product.id}
-          priceEntries={await getPriceEntries(business.id)}
+          basePriceKurus={product.priceKurus}
+          variants={variantsEnabled ? product.variants : []}
+          priceEntries={buildPriceEntries(allProducts, variantsEnabled)}
+          businessSlug={isletmeSlug}
+          loyaltyEnabled={loyaltyEnabled}
         />
       )}
     </div>
   );
-}
-
-async function getPriceEntries(businessId: string): Promise<[string, number][]> {
-  const products = await prisma.product.findMany({
-    where: { businessId, active: true },
-    select: { id: true, priceKurus: true },
-  });
-  return products.map((p) => [p.id, p.priceKurus]);
 }

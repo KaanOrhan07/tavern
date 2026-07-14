@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, EmptyState, Input, Label, Select, Textarea } from "@/components/ui";
-import { formatKurus } from "@/lib/utils";
+import { formatKurus, parseTlToKurus } from "@/lib/utils";
 import { ProductImage } from "@/components/musteri/ProductImage";
 
 type Ingredient = { id: string; name: string; unit: string };
+type VariantRow = { name: string; price: string };
 type RecipeRow = { ingredientId: string; amount: number };
 type Product = {
   id: string;
@@ -19,6 +20,7 @@ type Product = {
   allergens: string[];
   categoryId: string;
   recipe: RecipeRow[];
+  variants: { name: string; priceKurus: number }[];
 };
 type Category = { id: string; name: string; sortOrder: number; products: Product[] };
 
@@ -29,15 +31,18 @@ const EMPTY_FORM = {
   description: "",
   categoryId: "",
   recipe: [] as RecipeRow[],
+  variants: [] as VariantRow[],
   imageFile: null as File | null,
 };
 
 export function MenuManager({
   categories,
   ingredients,
+  variantsEnabled,
 }: {
   categories: Category[];
   ingredients: Ingredient[];
+  variantsEnabled: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +101,10 @@ export function MenuManager({
       description: product.description ?? "",
       categoryId: product.categoryId,
       recipe: product.recipe,
+      variants: product.variants.map((v) => ({
+        name: v.name,
+        price: (v.priceKurus / 100).toFixed(2).replace(".", ","),
+      })),
       imageFile: null,
     });
     setShowProductForm(true);
@@ -127,6 +136,17 @@ export function MenuManager({
     fd.set("description", form.description);
     fd.set("categoryId", form.categoryId);
     fd.set("recipe", JSON.stringify(validRecipe));
+    if (variantsEnabled) {
+      const parsedVariants = form.variants
+        .filter((v) => v.name.trim())
+        .map((v) => {
+          const priceKurus = parseTlToKurus(v.price);
+          if (priceKurus === null) return null;
+          return { name: v.name.trim(), priceKurus };
+        })
+        .filter((v): v is { name: string; priceKurus: number } => v !== null);
+      fd.set("variants", JSON.stringify(parsedVariants));
+    }
     if (form.imageFile) fd.set("image", form.imageFile);
 
     const res = form.id
@@ -382,6 +402,75 @@ export function MenuManager({
                   bilgisi otomatik hesaplanır.
                 </p>
               </div>
+
+              {variantsEnabled && (
+                <div className="rounded-xl border border-ink-line p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <Label>Varyantlar (Küçük/Orta/Büyük vb.)</Label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((f) => ({ ...f, variants: [...f.variants, { name: "", price: "" }] }))
+                      }
+                      className="text-sm text-gold cursor-pointer min-h-11 px-2"
+                    >
+                      + Varyant
+                    </button>
+                  </div>
+                  {form.variants.length === 0 ? (
+                    <p className="text-sm text-cream-dim">
+                      Varyant yoksa temel fiyat kullanılır.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {form.variants.map((row, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <Input
+                            value={row.name}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                variants: f.variants.map((v, i) =>
+                                  i === index ? { ...v, name: e.target.value } : v
+                                ),
+                              }))
+                            }
+                            placeholder="ör: Büyük"
+                            className="flex-1"
+                          />
+                          <Input
+                            value={row.price}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                variants: f.variants.map((v, i) =>
+                                  i === index ? { ...v, price: e.target.value } : v
+                                ),
+                              }))
+                            }
+                            placeholder="Fiyat ₺"
+                            inputMode="decimal"
+                            className="w-32"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Varyantı sil"
+                            onClick={() =>
+                              setForm((f) => ({
+                                ...f,
+                                variants: f.variants.filter((_, i) => i !== index),
+                              }))
+                            }
+                            className="flex h-11 w-11 items-center justify-center text-danger cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {error && <p className="text-sm text-danger">{error}</p>}
               <div className="flex gap-2 pb-2">

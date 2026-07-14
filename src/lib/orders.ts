@@ -2,9 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { isFeatureEnabled } from "@/lib/features";
 import { hasEnoughStock, isOutOfStock } from "@/lib/stock";
 import { afterDeduction, recipeDeductionBase } from "@/lib/units";
+import { earnLoyaltyPoints, redeemLoyaltyPoints, restoreLoyaltyRedeem } from "@/lib/loyalty";
 import type { OrderSource } from "@/generated/prisma/client";
 
-export type NewOrderItem = { productId: string; quantity: number };
+export type NewOrderItem = { productId: string; quantity: number; variantId?: string };
 
 /**
  * Masaya sipariş ekler: masanın açık siparişi varsa ona kalem ekler, yoksa
@@ -17,9 +18,22 @@ export async function addItemsToTable(params: {
   items: NewOrderItem[];
   source: OrderSource;
   createdById?: string;
+  customerPhone?: string;
+  redeemLoyalty?: boolean;
 }) {
-  const { businessId, tableId, items, source, createdById } = params;
-  const stockEnabled = await isFeatureEnabled(businessId, "stock");
+  const {
+    businessId,
+    tableId,
+    items,
+    source,
+    createdById,
+    customerPhone,
+    redeemLoyalty,
+  } = params;
+  const [stockEnabled, loyaltyEnabled] = await Promise.all([
+    isFeatureEnabled(businessId, "stock"),
+    isFeatureEnabled(businessId, "loyalty_points"),
+  ]);
 
   return prisma.$transaction(async (tx) => {
     const table = await tx.table.findFirst({
@@ -34,16 +48,22 @@ export async function addItemsToTable(params: {
         active: true,
       },
       include: {
+        variants: { where: { active: true }, orderBy: { sortOrder: "asc" } },
         recipeItems: {
           include: { ingredient: { select: { id: true, quantity: true, unit: true } } },
         },
       },
     });
     const productMap = new Map(products.map((p) => [p.id, p]));
+
     for (const item of items) {
       const product = productMap.get(item.productId);
       if (!product) throw new Error("Ürün bulunamadı");
       if (item.quantity < 1) throw new Error("Geçersiz adet");
+      if (item.variantId) {
+        const variant = product.variants.find((v) => v.id === item.variantId);
+        if (!variant) throw new Error(`"${product.name}" için geçersiz seçenek`);
+      }
       if (stockEnabled && isOutOfStock(product)) {
         throw new Error(`"${product.name}" tükendi`);
       }
@@ -59,16 +79,30 @@ export async function addItemsToTable(params: {
       data: { businessId, tableId, source, createdById },
     });
 
+    if (customerPhone && loyaltyEnabled) {
+      order = await tx.order.update({
+        where: { id: order.id },
+        data: { customerPhone },
+      });
+    }
+
     const createdItems = [];
     for (const item of items) {
       const product = productMap.get(item.productId)!;
+      const variant = item.variantId
+        ? product.variants.find((v) => v.id === item.variantId)
+        : null;
+      const unitKurus = variant?.priceKurus ?? product.priceKurus;
+      const productName = variant ? `${product.name} (${variant.name})` : product.name;
+
       createdItems.push(
         await tx.orderItem.create({
           data: {
             orderId: order.id,
             productId: product.id,
-            productName: product.name,
-            unitKurus: product.priceKurus,
+            variantId: variant?.id,
+            productName,
+            unitKurus,
             quantity: item.quantity,
           },
         })
@@ -89,6 +123,24 @@ export async function addItemsToTable(params: {
           });
         }
       }
+    }
+
+    if (redeemLoyalty && loyaltyEnabled && customerPhone && order.loyaltyRedeemPoints === 0) {
+      const allItems = await tx.orderItem.findMany({ where: { orderId: order.id } });
+      const subtotal = allItems.reduce((s, i) => s + i.unitKurus * i.quantity, 0);
+      const redeem = await redeemLoyaltyPoints(tx, {
+        businessId,
+        phone: customerPhone,
+        subtotalKurus: subtotal,
+      });
+      order = await tx.order.update({
+        where: { id: order.id },
+        data: {
+          customerPhone: redeem.phone,
+          loyaltyRedeemPoints: redeem.redeemPoints,
+          loyaltyDiscountKurus: redeem.discountKurus,
+        },
+      });
     }
 
     await tx.notification.create({
@@ -118,7 +170,10 @@ export async function removeOrderItem(businessId: string, itemId: string) {
   return prisma.$transaction(async (tx) => {
     const item = await tx.orderItem.findFirst({
       where: { id: itemId, order: { businessId, status: "OPEN" } },
-      include: { product: { include: { recipeItems: { include: { ingredient: true } } } } },
+      include: {
+        order: true,
+        product: { include: { recipeItems: { include: { ingredient: true } } } },
+      },
     });
     if (!item) throw new Error("Sipariş kalemi bulunamadı");
     if (item.paidQuantity > 0) {
@@ -147,11 +202,18 @@ export async function removeOrderItem(businessId: string, itemId: string) {
 
     await tx.orderItem.delete({ where: { id: item.id } });
 
-    // Siparişte kalem kalmadıysa siparişi iptal et
     const remaining = await tx.orderItem.count({
       where: { orderId: item.orderId },
     });
     if (remaining === 0) {
+      const order = item.order;
+      if (order.loyaltyRedeemPoints > 0 && order.customerPhone) {
+        await restoreLoyaltyRedeem(tx, {
+          businessId,
+          phone: order.customerPhone,
+          redeemPoints: order.loyaltyRedeemPoints,
+        });
+      }
       await tx.order.update({
         where: { id: item.orderId },
         data: { status: "CANCELLED", closedAt: new Date() },
@@ -172,6 +234,7 @@ export async function recordPayment(params: {
   itemPayments: { itemId: string; quantity: number }[];
 }) {
   const { businessId, orderId, method, itemPayments } = params;
+  const loyaltyEnabled = await isFeatureEnabled(businessId, "loyalty_points");
 
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.findFirst({
@@ -199,18 +262,31 @@ export async function recordPayment(params: {
 
     if (amountKurus === 0) throw new Error("Ödenecek kalem seçilmedi");
 
+    const items = await tx.orderItem.findMany({ where: { orderId } });
+    const allPaid = items.every((i) => i.paidQuantity >= i.quantity);
+    if (allPaid && order.loyaltyDiscountKurus > 0) {
+      amountKurus = Math.max(0, amountKurus - order.loyaltyDiscountKurus);
+    }
+
     await tx.payment.create({
       data: { businessId, orderId, method, amountKurus },
     });
 
-    // Tüm kalemler ödendi mi?
-    const items = await tx.orderItem.findMany({ where: { orderId } });
-    const allPaid = items.every((i) => i.paidQuantity >= i.quantity);
     if (allPaid) {
       await tx.order.update({
         where: { id: orderId },
         data: { status: "CLOSED", closedAt: new Date() },
       });
+
+      if (loyaltyEnabled && order.customerPhone) {
+        const gross = items.reduce((s, i) => s + i.unitKurus * i.quantity, 0);
+        const net = Math.max(0, gross - order.loyaltyDiscountKurus);
+        await earnLoyaltyPoints(tx, {
+          businessId,
+          phone: order.customerPhone,
+          spentKurus: net,
+        });
+      }
     }
 
     return { amountKurus, orderClosed: allPaid };

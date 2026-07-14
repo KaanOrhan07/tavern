@@ -6,6 +6,9 @@ import { formatKurus } from "@/lib/utils";
 import { ProductImage } from "@/components/musteri/ProductImage";
 import { useCart } from "@/components/musteri/useCart";
 import { CartBar } from "@/components/musteri/CartBar";
+import { makeCartKey } from "@/lib/cart-key";
+
+type Variant = { id: string; name: string; priceKurus: number };
 
 type Product = {
   id: string;
@@ -16,26 +19,44 @@ type Product = {
   allergens: string[];
   description: string | null;
   outOfStock: boolean;
+  variants: Variant[];
+  defaultCartKey: string;
+  displayPriceKurus: number;
+  hasVariants: boolean;
 };
+
 type Category = { id: string; name: string; products: Product[] };
 
 export function MenuList({
   isletmeSlug,
   categories,
   qrToken,
+  loyaltyEnabled,
 }: {
   isletmeSlug: string;
   categories: Category[];
   qrToken: string | null;
+  loyaltyEnabled: boolean;
 }) {
   const canOrder = qrToken !== null;
   const { cart, add, clear } = useCart(qrToken ?? "");
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
-  const priceByProductId = useMemo(
-    () => new Map(categories.flatMap((c) => c.products).map((p) => [p.id, p.priceKurus])),
-    [categories]
-  );
+  const priceByLineKey = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of categories) {
+      for (const p of c.products) {
+        if (p.hasVariants) {
+          for (const v of p.variants) {
+            map.set(makeCartKey(p.id, v.id), v.priceKurus);
+          }
+        } else {
+          map.set(p.id, p.priceKurus);
+        }
+      }
+    }
+    return map;
+  }, [categories]);
 
   const productHref = (slug: string) =>
     qrToken ? `/${isletmeSlug}/menu/${slug}?masa=${qrToken}` : `/${isletmeSlug}/menu/${slug}`;
@@ -61,7 +82,9 @@ export function MenuList({
           </h2>
           <div className="space-y-2.5">
             {category.products.map((product) => {
-              const qty = cart.get(product.id) ?? 0;
+              const cartKey = product.defaultCartKey;
+              const qty = cart.get(cartKey) ?? 0;
+              const quickAdd = canOrder && !product.outOfStock && !product.hasVariants;
               return (
                 <div
                   key={product.id}
@@ -91,16 +114,20 @@ export function MenuList({
                           </p>
                         )
                       )}
-                      <p className="mt-1 font-semibold text-gold">{formatKurus(product.priceKurus)}</p>
+                      <p className="mt-1 font-semibold text-gold">
+                        {product.hasVariants ? "Seçenekli · " : ""}
+                        {formatKurus(product.displayPriceKurus)}
+                        {product.hasVariants && product.variants.length > 1 ? "+" : ""}
+                      </p>
                     </div>
                   </Link>
-                  {canOrder && !product.outOfStock && (
+                  {quickAdd && (
                     <div className="flex shrink-0 items-center gap-2">
                       {qty > 0 && (
                         <>
                           <button
                             type="button"
-                            onClick={() => add(product.id, -1)}
+                            onClick={() => add(cartKey, -1)}
                             className="h-11 w-11 rounded-lg border border-ink-line text-lg cursor-pointer"
                           >
                             −
@@ -110,7 +137,7 @@ export function MenuList({
                       )}
                       <button
                         type="button"
-                        onClick={() => add(product.id, 1)}
+                        onClick={() => add(cartKey, 1)}
                         className="h-11 w-11 rounded-lg bg-gold text-lg font-bold text-ink cursor-pointer"
                       >
                         +
@@ -128,7 +155,9 @@ export function MenuList({
         <CartBar
           qrToken={qrToken}
           cart={cart}
-          priceByProductId={priceByProductId}
+          priceByLineKey={priceByLineKey}
+          businessSlug={isletmeSlug}
+          loyaltyEnabled={loyaltyEnabled}
           onSubmitted={({ ok, message: text }) => {
             setMessage({ kind: ok ? "ok" : "error", text });
             if (ok) clear();

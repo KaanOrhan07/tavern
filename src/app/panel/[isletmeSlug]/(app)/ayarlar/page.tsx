@@ -30,6 +30,7 @@ export default async function SettingsPage({
       orderMode={business.orderMode}
       theme={business.theme}
       printerEnabled={features.kitchen_printer}
+      loyaltyEnabled={features.loyalty_points}
     />
   );
 }
