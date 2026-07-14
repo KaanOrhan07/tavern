@@ -377,7 +377,9 @@ export function MenuManager({
                   </div>
                 )}
                 <p className="mt-2 text-xs text-cream-dim">
-                  Kaydettiğinizde kalori ve alerjen bilgisi otomatik hesaplanır.
+                  Reçete miktarı malzeme birimiyle aynıdır (g, ml veya adet). Ör: kahve malzemesi
+                  g birimindeyse reçeteye 18 yazın = 18 gram. Kaydettiğinizde kalori ve alerjen
+                  bilgisi otomatik hesaplanır.
                 </p>
               </div>
 

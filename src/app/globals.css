@@ -24,6 +24,26 @@ body {
   color: var(--color-cream);
 }
 
+/*
+ * Müşteri QR menüsü için açık tema — işletme panelinden seçilir.
+ * Aynı Tailwind renk isimleri (bg-ink, text-cream, vb.) [data-tavern-theme="light"]
+ * kapsamındaki her yerde bu değerleri kullanır; panel/admin her zaman koyu kalır.
+ */
+[data-tavern-theme="light"] {
+  --color-ink: #fbf9f4;
+  --color-ink-soft: #f1ece0;
+  --color-ink-card: #ffffff;
+  --color-ink-line: #e4dbc8;
+  --color-gold: #a87f38;
+  --color-gold-light: #c99a4e;
+  --color-gold-dark: #8c6a2e;
+  --color-cream: #1d1a13;
+  --color-cream-dim: #6b6252;
+  --color-ok: #3f8f45;
+  --color-warn: #a3691f;
+  --color-danger: #b8402f;
+}
+
 /* Sade, ince kaydırma çubuğu */
 * {
   scrollbar-width: thin;

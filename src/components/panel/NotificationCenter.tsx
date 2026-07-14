@@ -5,7 +5,7 @@ import { isPrinterConnected, printKitchenTicket } from "@/lib/printer";
 
 type Notification = {
   id: string;
-  type: "NEW_ORDER" | "NEW_REQUEST";
+  type: "NEW_ORDER" | "NEW_REQUEST" | "CALL_WAITER";
   message: string;
   readAt: string | null;
   createdAt: string;

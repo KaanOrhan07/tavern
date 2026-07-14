@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
 
 const schema = z.object({
-  orderMode: z.enum(["WAITER_ONLY", "CUSTOMER_QR"]),
+  orderMode: z.enum(["WAITER_ONLY", "CUSTOMER_QR"]).optional(),
+  theme: z.enum(["LIGHT", "DARK"]).optional(),
 });
 
 export async function PATCH(request: Request) {
@@ -12,12 +13,15 @@ export async function PATCH(request: Request) {
   if (isGuardError(ctx)) return ctx;
 
   const body = schema.safeParse(await request.json().catch(() => null));
-  if (!body.success) {
+  if (!body.success || (!body.data.orderMode && !body.data.theme)) {
     return NextResponse.json({ error: "Geçersiz istek" }, { status: 400 });
   }
   await prisma.business.update({
     where: { id: ctx.business.id },
-    data: { orderMode: body.data.orderMode },
+    data: {
+      ...(body.data.orderMode && { orderMode: body.data.orderMode }),
+      ...(body.data.theme && { theme: body.data.theme }),
+    },
   });
   return NextResponse.json({ ok: true });
 }

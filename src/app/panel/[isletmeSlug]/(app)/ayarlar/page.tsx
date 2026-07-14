@@ -25,6 +25,7 @@ export default async function SettingsPage({
   return (
     <SettingsView
       orderMode={business.orderMode}
+      theme={business.theme}
       printerEnabled={features.kitchen_printer}
     />
   );

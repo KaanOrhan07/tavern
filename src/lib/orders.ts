@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { isFeatureEnabled } from "@/lib/features";
+import { hasEnoughStock, isOutOfStock } from "@/lib/stock";
+import { afterDeduction, recipeDeductionBase } from "@/lib/units";
 import type { OrderSource } from "@/generated/prisma/client";
 
 export type NewOrderItem = { productId: string; quantity: number };
@@ -31,12 +33,23 @@ export async function addItemsToTable(params: {
         businessId,
         active: true,
       },
-      include: { recipeItems: true },
+      include: {
+        recipeItems: {
+          include: { ingredient: { select: { id: true, quantity: true, unit: true } } },
+        },
+      },
     });
     const productMap = new Map(products.map((p) => [p.id, p]));
     for (const item of items) {
-      if (!productMap.has(item.productId)) throw new Error("Ürün bulunamadı");
+      const product = productMap.get(item.productId);
+      if (!product) throw new Error("Ürün bulunamadı");
       if (item.quantity < 1) throw new Error("Geçersiz adet");
+      if (stockEnabled && isOutOfStock(product)) {
+        throw new Error(`"${product.name}" tükendi`);
+      }
+      if (stockEnabled && !hasEnoughStock(product, item.quantity)) {
+        throw new Error(`"${product.name}" için yeterli stok yok`);
+      }
     }
 
     let order = await tx.order.findFirst({
@@ -63,11 +76,16 @@ export async function addItemsToTable(params: {
 
       if (stockEnabled) {
         for (const recipeItem of product.recipeItems) {
+          const ingredient = recipeItem.ingredient;
+          const deductBase = recipeDeductionBase(
+            recipeItem.amount,
+            ingredient.unit,
+            item.quantity
+          );
+          const next = afterDeduction(ingredient.quantity, ingredient.unit, deductBase);
           await tx.ingredient.update({
             where: { id: recipeItem.ingredientId },
-            data: {
-              quantity: { decrement: recipeItem.amount * item.quantity },
-            },
+            data: next,
           });
         }
       }
@@ -100,7 +118,7 @@ export async function removeOrderItem(businessId: string, itemId: string) {
   return prisma.$transaction(async (tx) => {
     const item = await tx.orderItem.findFirst({
       where: { id: itemId, order: { businessId, status: "OPEN" } },
-      include: { product: { include: { recipeItems: true } } },
+      include: { product: { include: { recipeItems: { include: { ingredient: true } } } } },
     });
     if (!item) throw new Error("Sipariş kalemi bulunamadı");
     if (item.paidQuantity > 0) {
@@ -109,9 +127,20 @@ export async function removeOrderItem(businessId: string, itemId: string) {
 
     if (stockEnabled && item.product) {
       for (const recipeItem of item.product.recipeItems) {
+        const ingredient = recipeItem.ingredient;
+        const deductBase = recipeDeductionBase(
+          recipeItem.amount,
+          ingredient.unit,
+          item.quantity
+        );
+        const current = await tx.ingredient.findUnique({
+          where: { id: recipeItem.ingredientId },
+        });
+        if (!current) continue;
+        const next = afterDeduction(current.quantity, current.unit, -deductBase);
         await tx.ingredient.update({
           where: { id: recipeItem.ingredientId },
-          data: { quantity: { increment: recipeItem.amount * item.quantity } },
+          data: next,
         });
       }
     }

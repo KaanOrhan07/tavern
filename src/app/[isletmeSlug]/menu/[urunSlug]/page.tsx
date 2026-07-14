@@ -2,19 +2,25 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatKurus } from "@/lib/utils";
+import { isFeatureEnabled } from "@/lib/features";
+import { isOutOfStock } from "@/lib/stock";
 import { ProductImage } from "@/components/musteri/ProductImage";
+import { ProductAddToCart } from "@/components/musteri/ProductAddToCart";
 
 export const dynamic = "force-dynamic";
 
 export default async function PublicProductPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ isletmeSlug: string; urunSlug: string }>;
+  searchParams: Promise<{ masa?: string }>;
 }) {
   const { isletmeSlug, urunSlug } = await params;
+  const { masa } = await searchParams;
   const business = await prisma.business.findUnique({
     where: { slug: isletmeSlug },
-    select: { id: true, active: true },
+    select: { id: true, active: true, orderMode: true },
   });
   if (!business || !business.active) notFound();
 
@@ -22,14 +28,29 @@ export default async function PublicProductPage({
     where: { businessId_slug: { businessId: business.id, slug: urunSlug } },
     include: {
       category: { select: { name: true } },
-      recipeItems: { include: { ingredient: { select: { name: true } } } },
+      recipeItems: {
+        include: { ingredient: { select: { name: true, quantity: true, unit: true } } },
+      },
     },
   });
   if (!product || !product.active) notFound();
 
+  const [table, stockEnabled] = await Promise.all([
+    masa ? prisma.table.findUnique({ where: { qrToken: masa } }) : Promise.resolve(null),
+    isFeatureEnabled(business.id, "stock"),
+  ]);
+  const outOfStock = stockEnabled && isOutOfStock(product);
+  const canOrder =
+    !outOfStock &&
+    business.orderMode === "CUSTOMER_QR" &&
+    table !== null &&
+    table.businessId === business.id;
+
+  const menuHref = masa ? `/${isletmeSlug}/menu?masa=${masa}` : `/${isletmeSlug}/menu`;
+
   return (
-    <div className="space-y-5 pb-8">
-      <Link href={`/${isletmeSlug}/menu`} className="text-sm text-cream-dim hover:text-cream">
+    <div className="space-y-5 pb-32">
+      <Link href={menuHref} className="text-sm text-cream-dim hover:text-cream">
         ← Menüye Dön
       </Link>
 
@@ -47,6 +68,9 @@ export default async function PublicProductPage({
             {formatKurus(product.priceKurus)}
           </p>
         </div>
+        {outOfStock && (
+          <p className="mt-1 text-sm font-medium text-danger">Tükendi</p>
+        )}
         {product.description && (
           <p className="mt-2 text-sm leading-relaxed text-cream-dim">
             {product.description}
@@ -90,6 +114,22 @@ export default async function PublicProductPage({
           </p>
         </div>
       )}
+
+      {canOrder && (
+        <ProductAddToCart
+          qrToken={masa!}
+          productId={product.id}
+          priceEntries={await getPriceEntries(business.id)}
+        />
+      )}
     </div>
   );
+}
+
+async function getPriceEntries(businessId: string): Promise<[string, number][]> {
+  const products = await prisma.product.findMany({
+    where: { businessId, active: true },
+    select: { id: true, priceKurus: true },
+  });
+  return products.map((p) => [p.id, p.priceKurus]);
 }

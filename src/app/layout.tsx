@@ -15,10 +15,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Tavern",
   description: "Manage. Grow. Thrive.",
-  icons: {
-    icon: "/tavern-logo.png",
-    apple: "/tavern-logo.png",
-  },
 };
 
 export default function RootLayout({

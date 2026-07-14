@@ -12,13 +12,16 @@ import {
 
 export function SettingsView({
   orderMode,
+  theme,
   printerEnabled,
 }: {
   orderMode: "WAITER_ONLY" | "CUSTOMER_QR";
+  theme: "LIGHT" | "DARK";
   printerEnabled: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState(orderMode);
+  const [menuTheme, setMenuTheme] = useState(theme);
   const [error, setError] = useState<string | null>(null);
   const [printerStatus, setPrinterStatus] = useState<"idle" | "connected" | "error">("idle");
   const [printerSupported, setPrinterSupported] = useState(true);
@@ -39,6 +42,20 @@ export function SettingsView({
     if (!res.ok) {
       setMode(orderMode);
       setError("Sipariş modu güncellenemedi");
+    }
+    router.refresh();
+  }
+
+  async function saveTheme(next: "LIGHT" | "DARK") {
+    setMenuTheme(next);
+    const res = await fetch("/api/panel/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme: next }),
+    });
+    if (!res.ok) {
+      setMenuTheme(theme);
+      setError("Menü teması güncellenemedi");
     }
     router.refresh();
   }
@@ -87,6 +104,30 @@ export function SettingsView({
     </button>
   );
 
+  const themeOption = (value: "LIGHT" | "DARK", title: string, description: string) => (
+    <button
+      type="button"
+      onClick={() => saveTheme(value)}
+      className={`w-full rounded-xl border p-4 text-left cursor-pointer transition-colors min-h-11 ${
+        menuTheme === value
+          ? "border-gold bg-gold/5"
+          : "border-ink-line hover:border-gold-dark"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={`h-4 w-4 shrink-0 rounded-full border-2 ${
+            menuTheme === value ? "border-gold bg-gold" : "border-ink-line"
+          }`}
+        />
+        <div>
+          <p className="font-medium">{title}</p>
+          <p className="mt-0.5 text-xs text-cream-dim">{description}</p>
+        </div>
+      </div>
+    </button>
+  );
+
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Ayarlar</h1>
@@ -111,6 +152,17 @@ export function SettingsView({
             "Müşteri QR Aktif",
             "Müşteri masadaki QR ile kendi siparişini verir. Garson sipariş giremez ama masaları görebilir."
           )}
+        </div>
+      </Card>
+
+      <Card>
+        <p className="mb-1 font-medium">Müşteri Menü Teması</p>
+        <p className="mb-4 text-xs text-cream-dim">
+          Müşterilerin QR ile açtığı menü sayfasının rengi. Panel her zaman koyu kalır.
+        </p>
+        <div className="space-y-3">
+          {themeOption("DARK", "Koyu Tema", "Siyah zemin, altın vurgular (varsayılan).")}
+          {themeOption("LIGHT", "Açık Tema", "Krem/beyaz zemin, koyu metin.")}
         </div>
       </Card>
 

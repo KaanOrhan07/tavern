@@ -1,25 +1,29 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isFeatureEnabled } from "@/lib/features";
-import { formatKurus } from "@/lib/utils";
+import { isOutOfStock } from "@/lib/stock";
 import { SuggestionWidget } from "@/components/musteri/SuggestionWidget";
-import { ProductImage } from "@/components/musteri/ProductImage";
+import { MenuList } from "@/components/musteri/MenuList";
 
 export const dynamic = "force-dynamic";
 
 export default async function PublicMenuPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ isletmeSlug: string }>;
+  searchParams: Promise<{ masa?: string }>;
 }) {
   const { isletmeSlug } = await params;
+  const { masa } = await searchParams;
   const business = await prisma.business.findUnique({
     where: { slug: isletmeSlug },
   });
   if (!business || !business.active) notFound();
 
-  const [categories, suggestionEnabled] = await Promise.all([
+  // ?masa=<qrToken> ile gelindiyse (masa sayfasından "Menü" linki) ve sipariş
+  // müşteri QR moduyla açıksa, bu sayfada da sepete ekleme kontrollerini göster.
+  const [categories, suggestionEnabled, stockEnabled, table] = await Promise.all([
     prisma.category.findMany({
       where: { businessId: business.id },
       orderBy: { sortOrder: "asc" },
@@ -27,16 +31,37 @@ export default async function PublicMenuPage({
         products: {
           where: { active: true },
           orderBy: { name: "asc" },
+          include: {
+            recipeItems: {
+              select: {
+                amount: true,
+                ingredient: { select: { quantity: true, unit: true } },
+              },
+            },
+          },
         },
       },
     }),
     isFeatureEnabled(business.id, "ai_suggestion"),
+    isFeatureEnabled(business.id, "stock"),
+    masa
+      ? prisma.table.findUnique({ where: { qrToken: masa } })
+      : Promise.resolve(null),
   ]);
 
-  const visibleCategories = categories.filter((c) => c.products.length > 0);
+  const canOrder =
+    business.orderMode === "CUSTOMER_QR" && table !== null && table.businessId === business.id;
+  const qrToken = canOrder ? masa! : null;
+
+  const visibleCategories = categories
+    .filter((c) => c.products.length > 0)
+    .map((c) => ({
+      ...c,
+      products: c.products.map((p) => ({ ...p, outOfStock: stockEnabled && isOutOfStock(p) })),
+    }));
 
   return (
-    <div className="space-y-8 pb-8">
+    <div className="space-y-8 pb-32">
       <h1 className="text-lg font-semibold">Menü</h1>
 
       {suggestionEnabled && <SuggestionWidget slug={isletmeSlug} />}
@@ -46,44 +71,7 @@ export default async function PublicMenuPage({
           Menü henüz hazırlanıyor.
         </p>
       ) : (
-        visibleCategories.map((category) => (
-          <section key={category.id}>
-            <h2 className="mb-3 border-b border-ink-line pb-2 text-sm font-semibold tracking-wide text-gold">
-              {category.name}
-            </h2>
-            <div className="space-y-2.5">
-              {category.products.map((product) => (
-                <Link
-                  key={product.id}
-                  href={`/${isletmeSlug}/menu/${product.slug}`}
-                  className="flex items-center gap-3.5 rounded-xl border border-ink-line bg-ink-card p-3 transition-colors hover:border-gold-dark"
-                >
-                  <ProductImage
-                    src={product.imageUrl}
-                    alt={product.name}
-                    className="h-16 w-16 shrink-0 rounded-lg bg-ink-soft object-cover"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">{product.name}</p>
-                    {product.description && (
-                      <p className="mt-0.5 line-clamp-1 text-xs text-cream-dim">
-                        {product.description}
-                      </p>
-                    )}
-                    {product.allergens.length > 0 && (
-                      <p className="mt-1 text-[11px] text-warn">
-                        ⚠ {product.allergens.join(", ")}
-                      </p>
-                    )}
-                  </div>
-                  <p className="shrink-0 font-semibold text-gold">
-                    {formatKurus(product.priceKurus)}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ))
+        <MenuList isletmeSlug={isletmeSlug} categories={visibleCategories} qrToken={qrToken} />
       )}
     </div>
   );

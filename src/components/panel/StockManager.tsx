@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, EmptyState, Input, Label, Select } from "@/components/ui";
+import { STOCK_UNITS, formatStockQuantity } from "@/lib/units";
 
 type Ingredient = { id: string; name: string; unit: string; quantity: number };
 
-const UNITS = ["g", "kg", "adet", "lt", "ml"];
+const UNITS = [...STOCK_UNITS];
 
 const LOW_STOCK_THRESHOLD = 5;
 
@@ -67,6 +68,10 @@ export function StockManager({ ingredients }: { ingredients: Ingredient[] }) {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Stok</h1>
+      <p className="text-sm text-cream-dim">
+        kg ve lt girildiğinde otomatik olarak gram/ml olarak saklanır. Reçetede de aynı birim
+        kullanılır (ör: kahve 18 g, stok 1 kg → 1000 g).
+      </p>
 
       {ingredients.some(
         (i) => i.quantity > 0 && i.quantity <= LOW_STOCK_THRESHOLD
@@ -171,9 +176,8 @@ export function StockManager({ ingredients }: { ingredients: Ingredient[] }) {
                       className="rounded-lg border border-ink-line px-4 py-2 text-sm cursor-pointer hover:border-gold-dark"
                     >
                       <span className="font-semibold text-gold">
-                        {ingredient.quantity}
-                      </span>{" "}
-                      {ingredient.unit}
+                        {formatStockQuantity(ingredient.quantity, ingredient.unit)}
+                      </span>
                     </button>
                     <button
                       type="button"

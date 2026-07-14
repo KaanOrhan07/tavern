@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { formatKurus } from "@/lib/utils";
 import { ProductImage } from "@/components/musteri/ProductImage";
+import { useCart } from "@/components/musteri/useCart";
+import { CartBar } from "@/components/musteri/CartBar";
+import { CallWaiterButton } from "@/components/musteri/CallWaiterButton";
 
 type Product = {
   id: string;
@@ -12,6 +15,7 @@ type Product = {
   priceKurus: number;
   imageUrl: string;
   allergens: string[];
+  outOfStock: boolean;
 };
 type Category = { id: string; name: string; products: Product[] };
 type BillItem = {
@@ -38,8 +42,7 @@ export function CustomerTable({
   const canOrder = orderMode === "CUSTOMER_QR";
   const [bill, setBill] = useState<BillItem[] | null>(null);
   const [activeCategory, setActiveCategory] = useState(categories[0]?.id ?? "");
-  const [cart, setCart] = useState<Map<string, number>>(new Map());
-  const [submitting, setSubmitting] = useState(false);
+  const { cart, add: cartAdd, clear: clearCart } = useCart(qrToken);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   const loadBill = useCallback(async () => {
@@ -64,52 +67,10 @@ export function CustomerTable({
     return { total, remaining: total - paid };
   }, [bill]);
 
-  function cartAdd(productId: string, delta: number) {
-    setCart((prev) => {
-      const next = new Map(prev);
-      const qty = (next.get(productId) ?? 0) + delta;
-      if (qty <= 0) next.delete(productId);
-      else next.set(productId, qty);
-      return next;
-    });
-  }
-
-  const cartTotal = useMemo(() => {
-    let sum = 0;
-    for (const [productId, qty] of cart) {
-      const product = categories
-        .flatMap((c) => c.products)
-        .find((p) => p.id === productId);
-      if (product) sum += product.priceKurus * qty;
-    }
-    return sum;
-  }, [cart, categories]);
-
-  async function submitOrder() {
-    if (cart.size === 0) return;
-    setSubmitting(true);
-    setMessage(null);
-    const res = await fetch("/api/public/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        qrToken,
-        items: [...cart.entries()].map(([productId, quantity]) => ({
-          productId,
-          quantity,
-        })),
-      }),
-    });
-    if (res.ok) {
-      setCart(new Map());
-      setMessage({ kind: "ok", text: "Siparişiniz alındı, afiyet olsun!" });
-      loadBill();
-    } else {
-      const data = await res.json().catch(() => null);
-      setMessage({ kind: "error", text: data?.error ?? "Sipariş verilemedi" });
-    }
-    setSubmitting(false);
-  }
+  const priceByProductId = useMemo(
+    () => new Map(categories.flatMap((c) => c.products).map((p) => [p.id, p.priceKurus])),
+    [categories]
+  );
 
   return (
     <div className="space-y-6 pb-32">
@@ -122,12 +83,15 @@ export function CustomerTable({
               : "Sipariş için garsonunuza seslenebilirsiniz."}
           </p>
         </div>
-        <Link
-          href={`/${slug}/menu`}
-          className="rounded-lg border border-ink-line px-3.5 py-2.5 text-sm text-cream-dim hover:text-cream"
-        >
-          Menü
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <CallWaiterButton qrToken={qrToken} />
+          <Link
+            href={`/${slug}/menu?masa=${qrToken}`}
+            className="rounded-lg border border-ink-line px-3.5 py-2.5 text-sm text-cream-dim hover:text-cream"
+          >
+            Menü
+          </Link>
+        </div>
       </div>
 
       {message && (
@@ -199,7 +163,9 @@ export function CustomerTable({
                 return (
                   <div
                     key={product.id}
-                    className="flex items-center gap-3 rounded-xl border border-ink-line bg-ink-card p-3"
+                    className={`flex items-center gap-3 rounded-xl border border-ink-line bg-ink-card p-3 ${
+                      product.outOfStock ? "opacity-60" : ""
+                    }`}
                   >
                     <ProductImage
                       src={product.imageUrl}
@@ -208,39 +174,45 @@ export function CustomerTable({
                     />
                     <div className="min-w-0 flex-1">
                       <Link
-                        href={`/${slug}/menu/${product.slug}`}
+                        href={`/${slug}/menu/${product.slug}?masa=${qrToken}`}
                         className="text-sm font-medium hover:text-gold"
                       >
                         {product.name}
                       </Link>
                       <p className="text-xs text-gold">{formatKurus(product.priceKurus)}</p>
-                      {product.allergens.length > 0 && (
-                        <p className="text-[11px] text-warn">
-                          ⚠ {product.allergens.join(", ")}
-                        </p>
+                      {product.outOfStock ? (
+                        <p className="text-[11px] font-medium text-danger">Tükendi</p>
+                      ) : (
+                        product.allergens.length > 0 && (
+                          <p className="text-[11px] text-warn">
+                            ⚠ {product.allergens.join(", ")}
+                          </p>
+                        )
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      {qty > 0 && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => cartAdd(product.id, -1)}
-                            className="h-11 w-11 rounded-lg border border-ink-line text-lg cursor-pointer"
-                          >
-                            −
-                          </button>
-                          <span className="w-5 text-center font-semibold">{qty}</span>
-                        </>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => cartAdd(product.id, 1)}
-                        className="h-11 w-11 rounded-lg bg-gold text-lg font-bold text-ink cursor-pointer"
-                      >
-                        +
-                      </button>
-                    </div>
+                    {!product.outOfStock && (
+                      <div className="flex items-center gap-2">
+                        {qty > 0 && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => cartAdd(product.id, -1)}
+                              className="h-11 w-11 rounded-lg border border-ink-line text-lg cursor-pointer"
+                            >
+                              −
+                            </button>
+                            <span className="w-5 text-center font-semibold">{qty}</span>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => cartAdd(product.id, 1)}
+                          className="h-11 w-11 rounded-lg bg-gold text-lg font-bold text-ink cursor-pointer"
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -249,21 +221,19 @@ export function CustomerTable({
       )}
 
       {/* Sepet çubuğu */}
-      {canOrder && cart.size > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ink-line bg-ink/95 p-4 backdrop-blur">
-          <div className="mx-auto max-w-2xl">
-            <button
-              type="button"
-              onClick={submitOrder}
-              disabled={submitting}
-              className="w-full rounded-xl bg-gold py-4 text-base font-semibold text-ink cursor-pointer disabled:opacity-50"
-            >
-              {submitting
-                ? "Gönderiliyor..."
-                : `Sipariş Ver · ${formatKurus(cartTotal)}`}
-            </button>
-          </div>
-        </div>
+      {canOrder && (
+        <CartBar
+          qrToken={qrToken}
+          cart={cart}
+          priceByProductId={priceByProductId}
+          onSubmitted={({ ok, message: text }) => {
+            setMessage({ kind: ok ? "ok" : "error", text });
+            if (ok) {
+              clearCart();
+              loadBill();
+            }
+          }}
+        />
       )}
     </div>
   );

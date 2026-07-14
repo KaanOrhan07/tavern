@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { isFeatureEnabled } from "@/lib/features";
+import { isOutOfStock } from "@/lib/stock";
 import { CustomerTable } from "@/components/musteri/CustomerTable";
 
 export const dynamic = "force-dynamic";
@@ -19,24 +21,33 @@ export default async function CustomerTablePage({
     notFound();
   }
 
-  const categories = await prisma.category.findMany({
-    where: { businessId: table.businessId },
-    orderBy: { sortOrder: "asc" },
-    include: {
-      products: {
-        where: { active: true },
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          priceKurus: true,
-          imageUrl: true,
-          allergens: true,
+  const [categories, stockEnabled] = await Promise.all([
+    prisma.category.findMany({
+      where: { businessId: table.businessId },
+      orderBy: { sortOrder: "asc" },
+      include: {
+        products: {
+          where: { active: true },
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            priceKurus: true,
+            imageUrl: true,
+            allergens: true,
+            recipeItems: {
+              select: {
+                amount: true,
+                ingredient: { select: { quantity: true, unit: true } },
+              },
+            },
+          },
         },
       },
-    },
-  });
+    }),
+    isFeatureEnabled(table.businessId, "stock"),
+  ]);
 
   return (
     <CustomerTable
@@ -46,7 +57,14 @@ export default async function CustomerTablePage({
       orderMode={table.business.orderMode}
       categories={categories
         .filter((c) => c.products.length > 0)
-        .map((c) => ({ id: c.id, name: c.name, products: c.products }))}
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          products: c.products.map((p) => ({
+            ...p,
+            outOfStock: stockEnabled && isOutOfStock(p),
+          })),
+        }))}
     />
   );
 }

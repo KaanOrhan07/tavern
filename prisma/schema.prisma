@@ -23,6 +23,11 @@ enum OrderMode {
   CUSTOMER_QR // Müşteri QR ile kendi sipariş verir
 }
 
+enum Theme {
+  LIGHT // Açık tema
+  DARK // Koyu tema
+}
+
 model Business {
   id        String    @id @default(cuid())
   slug      String    @unique
@@ -31,6 +36,7 @@ model Business {
   type      BusinessType @relation(fields: [typeId], references: [id])
   active    Boolean   @default(true)
   orderMode OrderMode @default(WAITER_ONLY)
+  theme     Theme     @default(DARK) // Müşteri QR menüsünün teması
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -245,6 +251,7 @@ model StaffRequest {
 enum NotificationType {
   NEW_ORDER
   NEW_REQUEST
+  CALL_WAITER
 }
 
 model Notification {

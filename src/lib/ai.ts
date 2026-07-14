@@ -1,28 +1,48 @@
-import { GoogleGenAI } from "@google/genai";
+const MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+const ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
-
-function client() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY tanımlı değil");
-  return new GoogleGenAI({ apiKey });
-}
-
-/** Gemini'den salt JSON yanıt alır ve parse eder. */
+/** Groq'tan (OpenAI uyumlu Chat Completions API) salt JSON yanıt alır ve parse eder. */
 async function askJson<T>(system: string, user: string): Promise<T> {
-  const response = await client().models.generateContent({
-    model: MODEL,
-    contents: user,
-    config: {
-      systemInstruction: `${system}\nYanıtını YALNIZCA geçerli bir JSON objesi olarak ver. JSON dışında hiçbir metin, açıklama veya kod bloğu işareti ekleme.`,
-      responseMimeType: "application/json",
-    },
-  });
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("GROQ_API_KEY tanımlı değil");
 
-  const text = response.text ?? "";
+  let res: Response;
+  try {
+    res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          {
+            role: "system",
+            content: `${system}\nYanıtını YALNIZCA geçerli bir JSON objesi olarak ver. JSON dışında hiçbir metin, açıklama veya kod bloğu işareti ekleme.`,
+          },
+          { role: "user", content: user },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+  } catch (e) {
+    console.error("[ai] Groq isteği başarısız (ağ hatası):", e);
+    throw e;
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error(`[ai] Groq isteği başarısız (${res.status}):`, body);
+    throw new Error(`Groq API hatası: ${res.status}`);
+  }
+
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content ?? "";
   const jsonStart = text.indexOf("{");
   const jsonEnd = text.lastIndexOf("}");
   if (jsonStart === -1 || jsonEnd === -1) {
+    console.error("[ai] Groq geçerli JSON döndürmedi. Ham yanıt:", text);
     throw new Error("AI geçerli JSON döndürmedi");
   }
   return JSON.parse(text.slice(jsonStart, jsonEnd + 1)) as T;

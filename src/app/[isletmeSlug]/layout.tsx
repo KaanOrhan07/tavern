@@ -13,12 +13,15 @@ export default async function CustomerLayout({
   const { isletmeSlug } = await params;
   const business = await prisma.business.findUnique({
     where: { slug: isletmeSlug },
-    select: { name: true, active: true },
+    select: { name: true, active: true, theme: true },
   });
   if (!business || !business.active) notFound();
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div
+      data-tavern-theme={business.theme.toLowerCase()}
+      className="flex min-h-screen flex-col bg-ink text-cream"
+    >
       <header className="sticky top-0 z-20 border-b border-ink-line bg-ink/90 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3.5">
           <Link href={`/${isletmeSlug}/menu`} className="min-w-0">
