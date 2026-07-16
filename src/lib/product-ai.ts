@@ -29,7 +29,7 @@ export async function autoFillProductNutrition(businessId: string, productId: st
         aiApproved: true,
       },
     });
-  } catch {
-    // AI başarısız olsa bile ürün kaydı geçerli kalır
+  } catch (err) {
+    console.error("[product-ai] Kalori/alerjen hesaplaması başarısız:", err);
   }
 }

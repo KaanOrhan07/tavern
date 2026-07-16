@@ -154,9 +154,15 @@ export function MenuManager({
       : await fetch("/api/panel/products", { method: "POST", body: fd });
 
     if (res.ok) {
+      const hadRecipe = validRecipe.length > 0;
       setShowProductForm(false);
       setForm(EMPTY_FORM);
       router.refresh();
+      // Kalori/alerjen arka planda hesaplanır; birkaç saniye sonra tekrar yenile
+      if (hadRecipe) {
+        window.setTimeout(() => router.refresh(), 6000);
+        window.setTimeout(() => router.refresh(), 15000);
+      }
     } else {
       const data = await res.json().catch(() => null);
       setError(data?.error ?? "Ürün kaydedilemedi");

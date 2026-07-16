@@ -10,7 +10,7 @@ DIGIO tarafından geliştirilmektedir.
 - Next.js (App Router) + TypeScript + Tailwind CSS
 - Prisma 7 + PostgreSQL (Supabase)
 - Supabase Storage (ürün fotoğrafları, `sharp` ile sıkıştırma)
-- Google Gemini API (kalori/alerjen, satış tahmini, ürün önerisi)
+- Groq API (kalori/alerjen, satış tahmini, ürün önerisi)
 - Web Bluetooth/USB ile ESC/POS mutfak yazıcısı
 
 ## Kurulum
@@ -25,7 +25,7 @@ npm install
    - **Supabase:** proje oluşturun, `DATABASE_URL` (transaction pooler) ve `DIRECT_URL` (direct connection) değerlerini girin. Storage'da `product-images` adında **public** bir bucket oluşturun.
    - **ADMIN_KEY:** admin girişi için uzun rastgele bir anahtar belirleyin.
    - **AUTH_SECRET:** en az 32 karakter rastgele bir değer.
-   - **GEMINI_API_KEY:** Google AI Studio'dan alınan Gemini API anahtarı (AI özellikleri için).
+   - **GROQ_API_KEY:** [Groq Console](https://console.groq.com/keys)'dan alınan API anahtarı (AI özellikleri için).
 
 3. Veritabanını hazırlayın:
 

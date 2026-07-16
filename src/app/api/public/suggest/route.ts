@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { isFeatureEnabled } from "@/lib/features";
 import { suggestProducts } from "@/lib/ai";
+import { resolveSuggestedProduct } from "@/lib/ai-match";
 import { formatKurus } from "@/lib/utils";
 
 const schema = z.object({
@@ -47,14 +48,20 @@ export async function POST(request: Request) {
       body.data.query
     );
 
-    // Önerilen ürünlerin slug'larını da ekle (menüde linklemek için)
-    const bySlug = new Map(products.map((p) => [p.name, p.slug]));
-    return NextResponse.json({
-      ok: true,
-      suggestions: result.suggestions
-        .filter((s) => bySlug.has(s.productName))
-        .map((s) => ({ ...s, productSlug: bySlug.get(s.productName) })),
-    });
+    // AI bazen ürün adını hafif farklı yazar; menüdeki gerçek ürünle eşleştir
+    const suggestions = result.suggestions
+      .map((s) => {
+        const product = resolveSuggestedProduct(s.productName, products);
+        if (!product) return null;
+        return {
+          productName: product.name,
+          reason: s.reason,
+          productSlug: product.slug,
+        };
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null);
+
+    return NextResponse.json({ ok: true, suggestions });
   } catch {
     return NextResponse.json(
       { error: "Öneri alınamadı, tekrar deneyin" },
