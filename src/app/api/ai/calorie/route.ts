@@ -3,11 +3,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
 import { isFeatureEnabled } from "@/lib/features";
-import { estimateCaloriesAndAllergens } from "@/lib/ai";
+import { autoFillProductNutrition } from "@/lib/product-ai";
 
 const schema = z.object({ productId: z.string().min(1) });
 
-// Reçeteden AI ile kalori + alerjen hesaplar (otomatik kayıt product-ai.ts üzerinden)
+/** Reçeteden AI ile kalori + alerjen hesaplar ve ürüne kaydeder. */
 export async function POST(request: Request) {
   const ctx = await requirePanel({ ownerOnly: true });
   if (isGuardError(ctx)) return ctx;
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
   const product = await prisma.product.findFirst({
     where: { id: body.data.productId, businessId: ctx.business.id },
-    include: { recipeItems: { include: { ingredient: true } } },
+    include: { recipeItems: true },
   });
   if (!product) {
     return NextResponse.json({ error: "Ürün bulunamadı" }, { status: 404 });
@@ -36,15 +36,20 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await estimateCaloriesAndAllergens(
-      product.name,
-      product.recipeItems.map((r) => ({
-        name: r.ingredient.name,
-        unit: r.ingredient.unit,
-        amount: r.amount,
-      }))
-    );
-    return NextResponse.json({ ok: true, ...result });
+    const ok = await autoFillProductNutrition(ctx.business.id, body.data.productId);
+    if (!ok) {
+      return NextResponse.json(
+        { error: "AI hesaplaması tamamlanamadı, tekrar deneyin" },
+        { status: 502 }
+      );
+    }
+    const updated = await prisma.product.findUnique({ where: { id: body.data.productId } });
+    return NextResponse.json({
+      ok: true,
+      calories: updated.calories,
+      allergens: updated.allergens,
+      aiApproved: updated.aiApproved,
+    });
   } catch {
     return NextResponse.json(
       { error: "AI hesaplaması başarısız oldu, tekrar deneyin" },

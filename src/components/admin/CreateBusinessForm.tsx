@@ -61,17 +61,23 @@ export function CreateBusinessForm({
               </div>
               <div>
                 <Label>İşletme Türü</Label>
-                <Select
-                  value={form.typeId}
-                  onChange={(e) => setForm({ ...form, typeId: e.target.value })}
-                  required
-                >
-                  {types.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </Select>
+                {types.length === 0 ? (
+                  <p className="text-sm text-danger">
+                    İşletme türü bulunamadı. Veritabanı migration&apos;ını çalıştırın.
+                  </p>
+                ) : (
+                  <Select
+                    value={form.typeId}
+                    onChange={(e) => setForm({ ...form, typeId: e.target.value })}
+                    required
+                  >
+                    {types.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
               </div>
               <div className="border-t border-ink-line pt-4">
                 <p className="mb-3 text-xs font-medium text-cream-dim">
@@ -109,7 +115,7 @@ export function CreateBusinessForm({
               </div>
               {error && <p className="text-sm text-danger">{error}</p>}
               <div className="flex gap-2">
-                <Button type="submit" disabled={loading} className="flex-1">
+                <Button type="submit" disabled={loading || types.length === 0} className="flex-1">
                   {loading ? "Oluşturuluyor..." : "Oluştur"}
                 </Button>
                 <Button type="button" variant="secondary" onClick={() => setOpen(false)}>

@@ -2,15 +2,15 @@ import { prisma } from "@/lib/prisma";
 import { isFeatureEnabled } from "@/lib/features";
 import { estimateCaloriesAndAllergens } from "@/lib/ai";
 
-/** Ürün kaydından sonra reçeteye göre otomatik kalori/alerjen hesaplar. Hata olursa sessizce geçer. */
+/** Ürün kaydından sonra reçeteye göre otomatik kalori/alerjen hesaplar. */
 export async function autoFillProductNutrition(businessId: string, productId: string) {
-  if (!(await isFeatureEnabled(businessId, "ai_calorie"))) return;
+  if (!(await isFeatureEnabled(businessId, "ai_calorie"))) return false;
 
   const product = await prisma.product.findFirst({
     where: { id: productId, businessId },
     include: { recipeItems: { include: { ingredient: true } } },
   });
-  if (!product || product.recipeItems.length === 0) return;
+  if (!product || product.recipeItems.length === 0) return false;
 
   try {
     const result = await estimateCaloriesAndAllergens(
@@ -26,10 +26,12 @@ export async function autoFillProductNutrition(businessId: string, productId: st
       data: {
         calories: result.calories,
         allergens: result.allergens,
-        aiApproved: false,
+        aiApproved: true,
       },
     });
+    return true;
   } catch (err) {
     console.error("[product-ai] Kalori/alerjen hesaplaması başarısız:", err);
+    return false;
   }
 }

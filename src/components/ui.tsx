@@ -170,7 +170,7 @@ export function EmptyState({
   description?: string;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-ink-line py-12 text-center">
+    <div className="select-none rounded-xl border border-dashed border-ink-line py-12 text-center">
       <p className="text-sm font-medium text-cream-dim">{title}</p>
       {description && (
         <p className="mt-1 text-xs text-cream-dim/70">{description}</p>

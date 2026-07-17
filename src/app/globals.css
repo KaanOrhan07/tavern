@@ -25,6 +25,35 @@ body {
 }
 
 /*
+ * Statik metinlerde imleç görünmesini engelle (tarayıcı çeviri / odak bug'ları).
+ * Form alanlarında normal imleç kalır.
+ */
+:where(
+  p,
+  span,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  label,
+  li,
+  td,
+  th,
+  figcaption,
+  blockquote
+) {
+  caret-color: transparent;
+}
+
+:where(input, textarea, select, [contenteditable="true"]) {
+  caret-color: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/*
  * Müşteri QR menüsü için açık tema — işletme panelinden seçilir.
  * Aynı Tailwind renk isimleri (bg-ink, text-cream, vb.) [data-tavern-theme="light"]
  * kapsamındaki her yerde bu değerleri kullanır; panel/admin her zaman koyu kalır.

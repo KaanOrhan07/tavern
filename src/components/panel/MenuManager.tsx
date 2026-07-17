@@ -54,6 +54,7 @@ export function MenuManager({
   const [showProductForm, setShowProductForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [aiLoadingId, setAiLoadingId] = useState<string | null>(null);
 
   async function addCategory(e: React.FormEvent) {
     e.preventDefault();
@@ -193,13 +194,21 @@ export function MenuManager({
     setSaving(false);
   }
 
-  async function approveNutrition(product: Product) {
-    const fd = new FormData();
-    if (product.calories !== null) fd.set("calories", String(product.calories));
-    fd.set("allergens", JSON.stringify(product.allergens));
-    fd.set("aiApproved", "true");
-    await fetch(`/api/panel/products/${product.id}`, { method: "PATCH", body: fd });
-    router.refresh();
+  async function runAiNutrition(product: Product) {
+    setAiLoadingId(product.id);
+    setError(null);
+    const res = await fetch("/api/ai/calorie", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId: product.id }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setError(data?.error ?? "AI hesaplaması başarısız");
+    } else {
+      router.refresh();
+    }
+    setAiLoadingId(null);
   }
 
   async function toggleActive(product: Product) {
@@ -307,27 +316,27 @@ export function MenuManager({
                       <div className="mt-1 flex flex-wrap gap-1">
                         {!product.active && <Badge tone="danger">Pasif</Badge>}
                         {product.calories !== null && (
-                          <Badge tone={product.aiApproved ? "neutral" : "warn"}>
-                            ~{product.calories} kcal
-                            {!product.aiApproved && " · onay bekliyor"}
-                          </Badge>
+                          <Badge tone="neutral">~{product.calories} kcal</Badge>
                         )}
-                        {product.allergens.length > 0 && (
-                          <Badge tone="warn">
-                            {product.allergens.length} alerjen
-                            {!product.aiApproved && " · onay bekliyor"}
+                        {product.allergens.map((allergen) => (
+                          <Badge key={allergen} tone="warn">
+                            {allergen}
                           </Badge>
+                        ))}
+                        {product.recipe.length > 0 && product.calories === null && (
+                          <Badge tone="neutral">AI hesaplanıyor…</Badge>
                         )}
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col gap-2">
-                      {product.calories !== null && !product.aiApproved && (
+                      {product.recipe.length > 0 && product.calories === null && (
                         <button
                           type="button"
-                          onClick={() => approveNutrition(product)}
-                          className={`${btnClass} border-gold/40 text-gold hover:border-gold`}
+                          onClick={() => runAiNutrition(product)}
+                          disabled={aiLoadingId === product.id}
+                          className={`${btnClass} border-gold/40 text-gold hover:border-gold disabled:opacity-50`}
                         >
-                          AI Onayla
+                          {aiLoadingId === product.id ? "Hesaplanıyor…" : "AI Hesapla"}
                         </button>
                       )}
                       <button type="button" onClick={() => openEdit(product)} className={`${btnClass} hover:border-gold-dark`}>
@@ -450,9 +459,8 @@ export function MenuManager({
                   </div>
                 )}
                 <p className="mt-2 text-xs text-cream-dim">
-                  Reçete miktarı malzeme birimiyle aynıdır (g, ml veya adet). Ör: kahve malzemesi
-                  g birimindeyse reçeteye 18 yazın = 18 gram. Kaydettiğinizde kalori ve alerjen
-                  bilgisi otomatik hesaplanır; menüde yayınlamak için onaylamanız gerekir.
+                  Reçete miktarı malzeme birimiyle aynıdır (g, ml veya adet). Kaydettiğinizde AI
+                  reçeteye göre kalori miktarını hesaplar ve alerjen etiketlerini otomatik ekler.
                 </p>
               </div>
 

@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Tavern",
   description: "Manage. Grow. Thrive.",
+  other: {
+    google: "notranslate",
+  },
 };
 
 export default function RootLayout({
@@ -26,7 +29,8 @@ export default function RootLayout({
   return (
     <html
       lang="tr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      translate="no"
+      className={`${geistSans.variable} ${geistMono.variable} notranslate h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
         <div className="flex min-h-full flex-1 flex-col">{children}</div>

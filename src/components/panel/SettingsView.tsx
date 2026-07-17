@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Badge, Button, Card, Input, Label } from "@/components/ui";
 import { APP_VERSION } from "@/lib/version";
-import { RELEASE_NOTES } from "@/lib/release-notes";
 import {
   connectBluetoothPrinter,
   connectUsbPrinter,
@@ -536,28 +535,6 @@ export function SettingsView({
           )}
         </Card>
       )}
-
-      <Card>
-        <p className="mb-1 font-medium">Sürüm Notları</p>
-        <div className="mt-3 space-y-4">
-          {RELEASE_NOTES.map((note) => (
-            <div key={note.version} className="rounded-lg border border-ink-line p-3">
-              <div className="flex flex-wrap items-baseline gap-2">
-                <p className="font-medium text-cream">v{note.version}</p>
-                <p className="text-xs text-cream-dim">{note.date}</p>
-                {note.version === APP_VERSION && (
-                  <Badge tone="ok">Güncel</Badge>
-                )}
-              </div>
-              <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-cream-dim">
-                {note.highlights.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </Card>
 
       <Card>
         <p className="mb-1 font-medium">Sistem</p>
