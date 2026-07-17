@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Badge, Button, Card, Input, Label } from "@/components/ui";
 import { APP_VERSION } from "@/lib/version";
+import { CustomerPublicLink } from "@/components/panel/CustomerPublicLink";
 import {
   connectBluetoothPrinter,
   connectUsbPrinter,
@@ -21,6 +22,7 @@ export function SettingsView({
   printerEnabled,
   loyaltyEnabled,
   isBarber,
+  businessSlug,
 }: {
   businessName: string;
   logoUrl: string | null;
@@ -30,6 +32,7 @@ export function SettingsView({
   printerEnabled: boolean;
   loyaltyEnabled: boolean;
   isBarber: boolean;
+  businessSlug: string;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState(orderMode);
@@ -434,6 +437,15 @@ export function SettingsView({
             </Button>
           </form>
         </Card>
+      )}
+
+      {isBarber && (
+        <CustomerPublicLink
+          slug={businessSlug}
+          path="/randevu"
+          title="Müşteri Randevu Linki"
+          description="Bu linki veya QR kodu vitrin, Instagram veya WhatsApp'ta paylaşın. Müşteriler hesap açmadan randevu alır."
+        />
       )}
 
       {isBarber && (

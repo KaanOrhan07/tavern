@@ -46,6 +46,7 @@ export default async function SettingsPage({
       printerEnabled={features.kitchen_printer}
       loyaltyEnabled={features.loyalty_points}
       isBarber={isBarberBusiness(business.type.key)}
+      businessSlug={isletmeSlug}
     />
   );
 }
