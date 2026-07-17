@@ -50,7 +50,14 @@ export async function POST(request: Request) {
         },
       },
     },
+    include: { type: true },
   });
+
+  if (business.type.key === "barber") {
+    await prisma.barberSettings.create({
+      data: { businessId: business.id },
+    });
+  }
 
   return NextResponse.json({ ok: true, business });
 }

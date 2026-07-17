@@ -1,13 +1,27 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { Badge, Card, EmptyState } from "@/components/ui";
 import { CreateBusinessForm } from "@/components/admin/CreateBusinessForm";
+import { AdminBusinessFilters } from "@/components/admin/AdminBusinessFilters";
 
 export const dynamic = "force-dynamic";
 
-export default async function BusinessListPage() {
+export default async function BusinessListPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string; active?: string }>;
+}) {
+  const { type, active } = await searchParams;
+
+  const where: { type?: { key: string }; active?: boolean } = {};
+  if (type) where.type = { key: type };
+  if (active === "true") where.active = true;
+  if (active === "false") where.active = false;
+
   const [businesses, types] = await Promise.all([
     prisma.business.findMany({
+      where,
       include: { type: true },
       orderBy: { createdAt: "desc" },
     }),
@@ -16,15 +30,19 @@ export default async function BusinessListPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">İşletmeler</h1>
         <CreateBusinessForm types={types.map((t) => ({ id: t.id, name: t.name }))} />
       </div>
 
+      <Suspense fallback={null}>
+        <AdminBusinessFilters types={types.map((t) => ({ key: t.key, name: t.name }))} />
+      </Suspense>
+
       {businesses.length === 0 ? (
         <EmptyState
-          title="Henüz işletme yok"
-          description="Sağ üstteki butondan ilk işletmeyi oluşturun."
+          title="Eşleşen işletme yok"
+          description="Filtreleri değiştirin veya yeni işletme oluşturun."
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">

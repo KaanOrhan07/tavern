@@ -1,30 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { formatKurus } from "@/lib/utils";
-import { ProductImage } from "@/components/musteri/ProductImage";
 import { useCart } from "@/components/musteri/useCart";
-import { CartBar } from "@/components/musteri/CartBar";
-import { makeCartKey } from "@/lib/cart-key";
 import { CallWaiterButton } from "@/components/musteri/CallWaiterButton";
+import { DailyPick } from "@/components/musteri/DailyPick";
+import { SuggestionWidget } from "@/components/musteri/SuggestionWidget";
+import { MenuList } from "@/components/musteri/MenuList";
+import type { PublicMenuCategory, PublicMenuProduct } from "@/lib/public-menu-data";
 
-type Variant = { id: string; name: string; priceKurus: number };
-
-type Product = {
-  id: string;
-  name: string;
-  slug: string;
-  priceKurus: number;
-  imageUrl: string;
-  allergens: string[];
-  outOfStock: boolean;
-  variants: Variant[];
-  defaultCartKey: string;
-  displayPriceKurus: number;
-  hasVariants: boolean;
-};
-type Category = { id: string; name: string; products: Product[] };
 type BillItem = {
   productName: string;
   unitKurus: number;
@@ -38,21 +22,23 @@ export function CustomerTable({
   qrToken,
   tableName,
   orderMode,
-  categories,
+  menuCategories,
+  dailyProduct,
+  suggestionEnabled,
   loyaltyEnabled,
 }: {
   slug: string;
   qrToken: string;
   tableName: string;
   orderMode: "WAITER_ONLY" | "CUSTOMER_QR";
-  categories: Category[];
+  menuCategories: PublicMenuCategory[];
+  dailyProduct: PublicMenuProduct | null;
+  suggestionEnabled: boolean;
   loyaltyEnabled: boolean;
 }) {
   const canOrder = orderMode === "CUSTOMER_QR";
+  const orderToken = canOrder ? qrToken : null;
   const [bill, setBill] = useState<BillItem[] | null>(null);
-  const [activeCategory, setActiveCategory] = useState(categories[0]?.id ?? "");
-  const { cart, add: cartAdd, clear: clearCart } = useCart(qrToken);
-  const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   const loadBill = useCallback(async () => {
     const res = await fetch(`/api/public/table/${qrToken}`);
@@ -76,20 +62,6 @@ export function CustomerTable({
     return { total, remaining: total - paid };
   }, [bill]);
 
-  const priceByLineKey = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const c of categories) {
-      for (const p of c.products) {
-        if (p.hasVariants) {
-          for (const v of p.variants) map.set(makeCartKey(p.id, v.id), v.priceKurus);
-        } else {
-          map.set(p.id, p.priceKurus);
-        }
-      }
-    }
-    return map;
-  }, [categories]);
-
   return (
     <div className="space-y-6 pb-32">
       <div className="flex items-center justify-between">
@@ -98,33 +70,12 @@ export function CustomerTable({
           <p className="text-xs text-cream-dim">
             {canOrder
               ? "Menüden seçim yapıp sipariş verebilirsiniz."
-              : "Sipariş için garsonunuza seslenebilirsiniz."}
+              : "Menüyü inceleyebilir, sipariş için garsonunuza seslenebilirsiniz."}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <CallWaiterButton qrToken={qrToken} />
-          <Link
-            href={`/${slug}/menu?masa=${qrToken}`}
-            className="rounded-lg border border-ink-line px-3.5 py-2.5 text-sm text-cream-dim hover:text-cream"
-          >
-            Menü
-          </Link>
-        </div>
+        <CallWaiterButton qrToken={qrToken} />
       </div>
 
-      {message && (
-        <p
-          className={`rounded-lg border px-4 py-2.5 text-sm ${
-            message.kind === "ok"
-              ? "border-ok/40 bg-ok/10 text-ok"
-              : "border-danger/40 bg-danger/10 text-danger"
-          }`}
-        >
-          {message.text}
-        </p>
-      )}
-
-      {/* Hesap */}
       {bill !== null && bill.length > 0 && (
         <section className="rounded-xl border border-ink-line bg-ink-card">
           <p className="border-b border-ink-line p-4 text-sm font-medium">Hesabınız</p>
@@ -153,111 +104,21 @@ export function CustomerTable({
         </section>
       )}
 
-      {/* Menü + sipariş */}
-      {canOrder && categories.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setActiveCategory(c.id)}
-                className={`shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium cursor-pointer transition-colors ${
-                  activeCategory === c.id
-                    ? "bg-gold text-ink"
-                    : "bg-ink-soft text-cream-dim"
-                }`}
-              >
-                {c.name}
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-2.5">
-            {categories
-              .find((c) => c.id === activeCategory)
-              ?.products.map((product) => {
-                const cartKey = product.defaultCartKey;
-                const qty = cart.get(cartKey) ?? 0;
-                const quickAdd = !product.outOfStock && !product.hasVariants;
-                return (
-                  <div
-                    key={product.id}
-                    className={`flex items-center gap-3 rounded-xl border border-ink-line bg-ink-card p-3 ${
-                      product.outOfStock ? "opacity-60" : ""
-                    }`}
-                  >
-                    <ProductImage
-                      src={product.imageUrl}
-                      alt={product.name}
-                      className="h-14 w-14 shrink-0 rounded-lg bg-ink-soft object-cover"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <Link
-                        href={`/${slug}/menu/${product.slug}?masa=${qrToken}`}
-                        className="text-sm font-medium hover:text-gold"
-                      >
-                        {product.name}
-                      </Link>
-                      <p className="text-xs text-gold">
-                        {product.hasVariants ? "Seçenekli · " : ""}
-                        {formatKurus(product.displayPriceKurus)}
-                      </p>
-                      {product.outOfStock ? (
-                        <p className="text-[11px] font-medium text-danger">Tükendi</p>
-                      ) : (
-                        product.allergens.length > 0 && (
-                          <p className="text-[11px] text-warn">
-                            ⚠ {product.allergens.join(", ")}
-                          </p>
-                        )
-                      )}
-                    </div>
-                    {quickAdd && (
-                      <div className="flex items-center gap-2">
-                        {qty > 0 && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => cartAdd(cartKey, -1)}
-                              className="h-11 w-11 rounded-lg border border-ink-line text-lg cursor-pointer"
-                            >
-                              −
-                            </button>
-                            <span className="w-5 text-center font-semibold">{qty}</span>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => cartAdd(cartKey, 1)}
-                          className="h-11 w-11 rounded-lg bg-gold text-lg font-bold text-ink cursor-pointer"
-                        >
-                          +
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        </section>
+      {dailyProduct && (
+        <DailyPick product={dailyProduct} isletmeSlug={slug} masa={qrToken} />
       )}
 
-      {/* Sepet çubuğu */}
-      {canOrder && (
-        <CartBar
-          qrToken={qrToken}
-          cart={cart}
-          priceByLineKey={priceByLineKey}
-          businessSlug={slug}
+      {suggestionEnabled && <SuggestionWidget slug={slug} />}
+
+      {menuCategories.length === 0 ? (
+        <p className="py-12 text-center text-sm text-cream-dim">Menü henüz hazırlanıyor.</p>
+      ) : (
+        <MenuList
+          isletmeSlug={slug}
+          categories={menuCategories}
+          qrToken={orderToken}
           loyaltyEnabled={loyaltyEnabled}
-          onSubmitted={({ ok, message: text }) => {
-            setMessage({ kind: ok ? "ok" : "error", text });
-            if (ok) {
-              clearCart();
-              loadBill();
-            }
-          }}
+          onOrderSubmitted={loadBill}
         />
       )}
     </div>

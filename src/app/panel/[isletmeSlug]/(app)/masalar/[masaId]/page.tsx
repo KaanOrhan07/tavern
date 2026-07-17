@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getPanelSessionFor } from "@/lib/auth";
+import { requireRestaurantModule } from "@/lib/panel-module-guard";
 import { getFeatureMap } from "@/lib/features";
 import { TableDetail } from "@/components/panel/TableDetail";
 
@@ -14,6 +15,7 @@ export default async function TableDetailPage({
   const { isletmeSlug, masaId } = await params;
   const session = await getPanelSessionFor(isletmeSlug);
   if (!session) redirect(`/panel/${isletmeSlug}/giris`);
+  await requireRestaurantModule(isletmeSlug, session.businessId);
 
   const [table, business, categories, features] = await Promise.all([
     prisma.table.findFirst({

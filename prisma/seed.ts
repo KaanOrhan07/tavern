@@ -11,6 +11,11 @@ async function main() {
     update: {},
     create: { key: "restaurant", name: "Restoran / Kafe" },
   });
+  await prisma.businessType.upsert({
+    where: { key: "barber" },
+    update: {},
+    create: { key: "barber", name: "Berber / Kuaför / Güzellik" },
+  });
   console.log("Seed tamamlandı: işletme türleri hazır.");
 }
 

@@ -54,6 +54,11 @@ model Business {
   notifications Notification[]
   loyaltyConfig  LoyaltyConfig?
   loyaltyAccounts LoyaltyAccount[]
+
+  // Berber / kuaför modülü
+  barberSettings BarberSettings?
+  services       Service[]
+  appointments   Appointment[]
 }
 
 // Özellik bayrakları — admin panelden işletme başına açılıp kapanır
@@ -86,6 +91,7 @@ model User {
 
   createdOrders  Order[]        @relation("OrderCreatedBy")
   staffRequests  StaffRequest[]
+  appointments   Appointment[]  @relation("StaffAppointments")
 
   @@unique([businessId, pin])
 }
@@ -170,6 +176,7 @@ model Ingredient {
   createdAt  DateTime @default(now())
 
   recipeItems RecipeItem[]
+  serviceRecipeItems ServiceRecipeItem[]
 
   @@unique([businessId, name])
 }
@@ -277,6 +284,7 @@ enum NotificationType {
   NEW_ORDER
   NEW_REQUEST
   CALL_WAITER
+  NEW_APPOINTMENT
 }
 
 model Notification {
@@ -311,4 +319,69 @@ model LoyaltyAccount {
   updatedAt  DateTime @updatedAt
 
   @@unique([businessId, phone])
+}
+
+// ============ BERBER / KUAFÖR MODÜLÜ ============
+
+model BarberSettings {
+  businessId  String   @id
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  slotMinutes Int      @default(30) // 30 veya 60 dakikalık ızgara
+  openTime    String   @default("09:00") // HH:mm
+  closeTime   String   @default("20:00") // HH:mm
+  updatedAt   DateTime @updatedAt
+}
+
+model Service {
+  id              String   @id @default(cuid())
+  businessId      String
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name            String
+  durationMinutes Int
+  priceKurus      Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  recipeItems  ServiceRecipeItem[]
+  appointments Appointment[]
+
+  @@unique([businessId, name])
+}
+
+model ServiceRecipeItem {
+  id           String     @id @default(cuid())
+  serviceId    String
+  service      Service    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  amount       Float
+
+  @@unique([serviceId, ingredientId])
+}
+
+enum AppointmentStatus {
+  BOOKED
+  CANCELLED
+  COMPLETED
+}
+
+model Appointment {
+  id            String            @id @default(cuid())
+  businessId    String
+  business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  staffId       String
+  staff         User              @relation("StaffAppointments", fields: [staffId], references: [id], onDelete: Cascade)
+  serviceId     String
+  service       Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  customerName  String
+  customerPhone String
+  startAt       DateTime
+  endAt         DateTime
+  status        AppointmentStatus @default(BOOKED)
+  cancelToken   String            @unique @default(uuid())
+  createdAt     DateTime          @default(now())
+
+  @@index([businessId, startAt])
+  @@index([staffId, startAt, status])
 }

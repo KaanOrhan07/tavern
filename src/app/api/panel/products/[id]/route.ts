@@ -104,6 +104,29 @@ export async function PATCH(
     await saveVariants(id, variants.data);
   }
 
+  if (form.has("calories")) {
+    const raw = String(form.get("calories")).trim();
+    if (raw === "") {
+      data.calories = null;
+    } else {
+      const calories = Number.parseInt(raw, 10);
+      if (!Number.isFinite(calories) || calories < 0) {
+        return NextResponse.json({ error: "Geçersiz kalori değeri" }, { status: 400 });
+      }
+      data.calories = calories;
+    }
+  }
+  if (form.has("allergens")) {
+    const parsed = JSON.parse(String(form.get("allergens")));
+    if (!Array.isArray(parsed)) {
+      return NextResponse.json({ error: "Geçersiz alerjen listesi" }, { status: 400 });
+    }
+    data.allergens = parsed.map((a) => String(a).trim()).filter(Boolean);
+  }
+  if (form.has("aiApproved")) {
+    data.aiApproved = String(form.get("aiApproved")) === "true";
+  }
+
   const product = await prisma.product.update({ where: { id }, data });
 
   if (recipeChanged) {

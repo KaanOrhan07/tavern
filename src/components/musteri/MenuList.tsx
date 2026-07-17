@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { formatKurus } from "@/lib/utils";
 import { ProductImage } from "@/components/musteri/ProductImage";
+import { ProductNutritionBadges } from "@/components/musteri/ProductNutritionBadges";
 import { useCart } from "@/components/musteri/useCart";
 import { CartBar } from "@/components/musteri/CartBar";
 import { makeCartKey } from "@/lib/cart-key";
@@ -16,6 +17,7 @@ type Product = {
   slug: string;
   priceKurus: number;
   imageUrl: string;
+  calories: number | null;
   allergens: string[];
   description: string | null;
   outOfStock: boolean;
@@ -32,11 +34,13 @@ export function MenuList({
   categories,
   qrToken,
   loyaltyEnabled,
+  onOrderSubmitted,
 }: {
   isletmeSlug: string;
   categories: Category[];
   qrToken: string | null;
   loyaltyEnabled: boolean;
+  onOrderSubmitted?: () => void;
 }) {
   const canOrder = qrToken !== null;
   const { cart, add, clear } = useCart(qrToken ?? "");
@@ -108,11 +112,10 @@ export function MenuList({
                       {product.outOfStock ? (
                         <p className="mt-1 text-[11px] font-medium text-danger">Tükendi</p>
                       ) : (
-                        product.allergens.length > 0 && (
-                          <p className="mt-1 text-[11px] text-warn">
-                            ⚠ {product.allergens.join(", ")}
-                          </p>
-                        )
+                        <ProductNutritionBadges
+                          calories={product.calories}
+                          allergens={product.allergens}
+                        />
                       )}
                       <p className="mt-1 font-semibold text-gold">
                         {product.hasVariants ? "Seçenekli · " : ""}
@@ -160,7 +163,10 @@ export function MenuList({
           loyaltyEnabled={loyaltyEnabled}
           onSubmitted={({ ok, message: text }) => {
             setMessage({ kind: ok ? "ok" : "error", text });
-            if (ok) clear();
+            if (ok) {
+              clear();
+              onOrderSubmitted?.();
+            }
           }}
         />
       )}

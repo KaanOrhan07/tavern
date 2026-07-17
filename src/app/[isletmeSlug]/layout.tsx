@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { defaultCustomerPath } from "@/lib/business-modules";
 
 export default async function CustomerLayout({
   children,
@@ -13,9 +14,18 @@ export default async function CustomerLayout({
   const { isletmeSlug } = await params;
   const business = await prisma.business.findUnique({
     where: { slug: isletmeSlug },
-    select: { name: true, active: true, theme: true, logoUrl: true, bannerUrl: true },
+    select: {
+      name: true,
+      active: true,
+      theme: true,
+      logoUrl: true,
+      bannerUrl: true,
+      type: { select: { key: true } },
+    },
   });
   if (!business || !business.active) notFound();
+
+  const homeHref = defaultCustomerPath(isletmeSlug, business.type.key);
 
   return (
     <div
@@ -45,7 +55,7 @@ export default async function CustomerLayout({
               className="h-10 w-10 shrink-0 rounded-lg object-cover"
             />
           ) : null}
-          <Link href={`/${isletmeSlug}/menu`} className="min-w-0 flex-1">
+          <Link href={homeHref} className="min-w-0 flex-1">
             <p className="truncate font-medium">{business.name}</p>
           </Link>
         </div>

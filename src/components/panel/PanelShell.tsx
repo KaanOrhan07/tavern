@@ -5,6 +5,8 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Badge } from "@/components/ui";
 import { NotificationCenter } from "@/components/panel/NotificationCenter";
+import { IdleLogout } from "@/components/IdleLogout";
+import { isBarberBusiness } from "@/lib/business-modules";
 import type { FeatureKey } from "@/lib/feature-defs";
 
 type NavItem = {
@@ -18,6 +20,7 @@ type NavItem = {
 export function PanelShell({
   slug,
   businessName,
+  businessTypeKey,
   role,
   userName,
   features,
@@ -26,6 +29,7 @@ export function PanelShell({
 }: {
   slug: string;
   businessName: string;
+  businessTypeKey: string;
   role: "owner" | "staff";
   userName: string;
   features: Record<FeatureKey, boolean>;
@@ -35,8 +39,9 @@ export function PanelShell({
   const pathname = usePathname();
   const router = useRouter();
   const base = `/panel/${slug}`;
+  const barber = isBarberBusiness(businessTypeKey);
 
-  const allItems: NavItem[] = [
+  const restaurantItems: NavItem[] = [
     { href: `${base}/dashboard`, label: "Genel Bakış", icon: "◈", ownerOnly: true },
     { href: `${base}/masalar`, label: "Masalar", icon: "▦" },
     { href: `${base}/menu`, label: "Menü", icon: "☰", ownerOnly: true },
@@ -47,6 +52,17 @@ export function PanelShell({
     { href: `${base}/talepler`, label: "Talepler", icon: "✎", feature: "staff_requests" },
     { href: `${base}/ayarlar`, label: "Ayarlar", icon: "⚙", ownerOnly: true },
   ];
+
+  const barberItems: NavItem[] = [
+    { href: `${base}/dashboard`, label: "Genel Bakış", icon: "◈", ownerOnly: true },
+    { href: `${base}/randevular`, label: "Randevular", icon: "◷" },
+    { href: `${base}/hizmetler`, label: "Hizmetler", icon: "☰", ownerOnly: true },
+    { href: `${base}/stok`, label: "Stok", icon: "▤", ownerOnly: true, feature: "stock" },
+    { href: `${base}/personeller`, label: "Personeller", icon: "◎", ownerOnly: true },
+    { href: `${base}/ayarlar`, label: "Ayarlar", icon: "⚙", ownerOnly: true },
+  ];
+
+  const allItems = barber ? barberItems : restaurantItems;
 
   const items = allItems.filter((item) => {
     if (item.ownerOnly && role !== "owner") return false;
@@ -65,6 +81,7 @@ export function PanelShell({
 
   return (
     <div className="flex min-h-screen">
+      <IdleLogout logoutUrl="/api/panel/logout" redirectUrl={`${base}/giris`} />
       {/* Masaüstü sol menü */}
       <aside className="sticky top-0 hidden h-screen w-60 flex-col border-r border-ink-line bg-ink-soft md:flex">
         <div className="border-b border-ink-line p-4">

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getPanelSessionFor } from "@/lib/auth";
+import { requireRestaurantModule } from "@/lib/panel-module-guard";
 import { isFeatureEnabled } from "@/lib/features";
 import { MenuManager } from "@/components/panel/MenuManager";
 
@@ -15,6 +16,7 @@ export default async function MenuPage({
   const session = await getPanelSessionFor(isletmeSlug);
   if (!session) redirect(`/panel/${isletmeSlug}/giris`);
   if (session.role !== "owner") redirect(`/panel/${isletmeSlug}/masalar`);
+  await requireRestaurantModule(isletmeSlug, session.businessId);
 
   const [categories, ingredients, variantsEnabled] = await Promise.all([
     prisma.category.findMany({
@@ -53,6 +55,7 @@ export default async function MenuPage({
           active: p.active,
           calories: p.calories,
           allergens: p.allergens,
+          aiApproved: p.aiApproved,
           categoryId: p.categoryId,
           recipe: p.recipeItems.map((r) => ({
             ingredientId: r.ingredientId,

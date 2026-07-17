@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Badge, Button, Card, Input, Label } from "@/components/ui";
 import { APP_VERSION } from "@/lib/version";
+import { RELEASE_NOTES } from "@/lib/release-notes";
 import {
   connectBluetoothPrinter,
   connectUsbPrinter,
@@ -20,6 +21,7 @@ export function SettingsView({
   theme,
   printerEnabled,
   loyaltyEnabled,
+  isBarber,
 }: {
   businessName: string;
   logoUrl: string | null;
@@ -28,6 +30,7 @@ export function SettingsView({
   theme: "LIGHT" | "DARK";
   printerEnabled: boolean;
   loyaltyEnabled: boolean;
+  isBarber: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState(orderMode);
@@ -47,6 +50,37 @@ export function SettingsView({
   const [okMessage, setOkMessage] = useState<string | null>(null);
   const [printerStatus, setPrinterStatus] = useState<"idle" | "connected" | "error">("idle");
   const [printerSupported, setPrinterSupported] = useState(true);
+  const [slotMinutes, setSlotMinutes] = useState<30 | 60>(30);
+  const [openTime, setOpenTime] = useState("09:00");
+  const [closeTime, setCloseTime] = useState("20:00");
+  const [savingBarber, setSavingBarber] = useState(false);
+
+  useEffect(() => {
+    if (!isBarber) return;
+    fetch("/api/panel/barber-settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.settings) return;
+        setSlotMinutes(data.settings.slotMinutes);
+        setOpenTime(data.settings.openTime);
+        setCloseTime(data.settings.closeTime);
+      });
+  }, [isBarber]);
+
+  async function saveBarberSettings(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingBarber(true);
+    setError(null);
+    const res = await fetch("/api/panel/barber-settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slotMinutes, openTime, closeTime }),
+    });
+    if (!res.ok) setError("Randevu ayarları kaydedilemedi");
+    else setOkMessage("Randevu ayarları güncellendi");
+    setSavingBarber(false);
+  }
+
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- tarayıcı API'si yalnızca mount sonrası okunabilir
@@ -260,7 +294,9 @@ export function SettingsView({
       <Card>
         <p className="mb-1 font-medium">İşletme Profili</p>
         <p className="mb-4 text-xs text-cream-dim">
-          Müşteri QR menüsünde görünen ad, logo ve banner.
+          {isBarber
+            ? "Müşteri randevu sayfasında görünen ad, logo ve banner."
+            : "Müşteri QR menüsünde görünen ad, logo ve banner."}
         </p>
         <form onSubmit={saveProfile} className="space-y-4">
           <div>
@@ -311,8 +347,9 @@ export function SettingsView({
         </form>
       </Card>
 
-      <Card>
-        <p className="mb-1 font-medium">Toplu Fiyat Artışı</p>
+      {!isBarber && (
+        <Card>
+          <p className="mb-1 font-medium">Toplu Fiyat Artışı</p>
         <p className="mb-4 text-xs text-cream-dim">
           Tüm aktif ürünlere tek seferde zam uygular.
         </p>
@@ -352,8 +389,9 @@ export function SettingsView({
           </Button>
         </form>
       </Card>
+      )}
 
-      {loyaltyEnabled && (
+      {!isBarber && loyaltyEnabled && (
         <Card>
           <p className="mb-1 font-medium">Sadakat / Puan Sistemi</p>
           <p className="mb-4 text-xs text-cream-dim">
@@ -399,6 +437,50 @@ export function SettingsView({
         </Card>
       )}
 
+      {isBarber && (
+        <Card>
+          <p className="mb-1 font-medium">Randevu Ayarları</p>
+          <p className="mb-4 text-xs text-cream-dim">
+            Çalışma saatleri ve slot süresi müşteri randevu ızgarasını belirler.
+          </p>
+          <form onSubmit={saveBarberSettings} className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <Label>Slot süresi</Label>
+              <select
+                value={slotMinutes}
+                onChange={(e) => setSlotMinutes(Number(e.target.value) as 30 | 60)}
+                className="mt-1 w-full rounded-lg border border-ink-line bg-ink px-3 py-2 text-sm"
+              >
+                <option value={30}>30 dakika</option>
+                <option value={60}>60 dakika</option>
+              </select>
+            </div>
+            <div>
+              <Label>Açılış</Label>
+              <Input
+                type="time"
+                value={openTime}
+                onChange={(e) => setOpenTime(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label>Kapanış</Label>
+              <Input
+                type="time"
+                value={closeTime}
+                onChange={(e) => setCloseTime(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" disabled={savingBarber} className="sm:col-span-3">
+              {savingBarber ? "Kaydediliyor..." : "Randevu Ayarlarını Kaydet"}
+            </Button>
+          </form>
+        </Card>
+      )}
+
+      {!isBarber && (
       <Card>
         <p className="mb-1 font-medium">Sipariş Modu</p>
         <p className="mb-4 text-xs text-cream-dim">İki mod aynı anda aktif olamaz.</p>
@@ -415,11 +497,14 @@ export function SettingsView({
           )}
         </div>
       </Card>
+      )}
 
       <Card>
-        <p className="mb-1 font-medium">Müşteri Menü Teması</p>
+        <p className="mb-1 font-medium">{isBarber ? "Müşteri Sayfa Teması" : "Müşteri Menü Teması"}</p>
         <p className="mb-4 text-xs text-cream-dim">
-          Müşterilerin QR ile açtığı menü sayfasının rengi. Panel her zaman koyu kalır.
+          {isBarber
+            ? "Müşterilerin randevu sayfasının rengi. Panel her zaman koyu kalır."
+            : "Müşterilerin QR ile açtığı menü sayfasının rengi. Panel her zaman koyu kalır."}
         </p>
         <div className="space-y-3">
           {themeOption("DARK", "Koyu Tema", "Siyah zemin, altın vurgular (varsayılan).")}
@@ -427,7 +512,7 @@ export function SettingsView({
         </div>
       </Card>
 
-      {printerEnabled && (
+      {printerEnabled && !isBarber && (
         <Card>
           <div className="mb-4 flex items-center justify-between">
             <p className="font-medium">Mutfak Yazıcısı</p>
@@ -451,6 +536,28 @@ export function SettingsView({
           )}
         </Card>
       )}
+
+      <Card>
+        <p className="mb-1 font-medium">Sürüm Notları</p>
+        <div className="mt-3 space-y-4">
+          {RELEASE_NOTES.map((note) => (
+            <div key={note.version} className="rounded-lg border border-ink-line p-3">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <p className="font-medium text-cream">v{note.version}</p>
+                <p className="text-xs text-cream-dim">{note.date}</p>
+                {note.version === APP_VERSION && (
+                  <Badge tone="ok">Güncel</Badge>
+                )}
+              </div>
+              <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-cream-dim">
+                {note.highlights.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <Card>
         <p className="mb-1 font-medium">Sistem</p>

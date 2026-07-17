@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getPanelSessionFor } from "@/lib/auth";
+import { requireRestaurantModule } from "@/lib/panel-module-guard";
 import { formatKurus, todayRange } from "@/lib/utils";
 import { Card, EmptyState } from "@/components/ui";
 
@@ -15,6 +16,7 @@ export default async function DayEndPage({
   const session = await getPanelSessionFor(isletmeSlug);
   if (!session) redirect(`/panel/${isletmeSlug}/giris`);
   if (session.role !== "owner") redirect(`/panel/${isletmeSlug}/masalar`);
+  await requireRestaurantModule(isletmeSlug, session.businessId);
 
   const { start, end } = todayRange();
   const payments = await prisma.payment.findMany({

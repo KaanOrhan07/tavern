@@ -18,6 +18,7 @@ type Product = {
   active: boolean;
   calories: number | null;
   allergens: string[];
+  aiApproved: boolean;
   categoryId: string;
   recipe: RecipeRow[];
   variants: { name: string; priceKurus: number }[];
@@ -33,6 +34,9 @@ const EMPTY_FORM = {
   recipe: [] as RecipeRow[],
   variants: [] as VariantRow[],
   imageFile: null as File | null,
+  calories: "",
+  allergens: "",
+  aiApproved: false,
 };
 
 export function MenuManager({
@@ -106,6 +110,9 @@ export function MenuManager({
         price: (v.priceKurus / 100).toFixed(2).replace(".", ","),
       })),
       imageFile: null,
+      calories: product.calories !== null ? String(product.calories) : "",
+      allergens: product.allergens.join(", "),
+      aiApproved: product.aiApproved,
     });
     setShowProductForm(true);
     setError(null);
@@ -149,6 +156,22 @@ export function MenuManager({
     }
     if (form.imageFile) fd.set("image", form.imageFile);
 
+    if (form.id) {
+      const calRaw = form.calories.trim();
+      if (calRaw) fd.set("calories", calRaw);
+      else fd.set("calories", "");
+      fd.set(
+        "allergens",
+        JSON.stringify(
+          form.allergens
+            .split(",")
+            .map((a) => a.trim())
+            .filter(Boolean)
+        )
+      );
+      fd.set("aiApproved", String(form.aiApproved));
+    }
+
     const res = form.id
       ? await fetch(`/api/panel/products/${form.id}`, { method: "PATCH", body: fd })
       : await fetch("/api/panel/products", { method: "POST", body: fd });
@@ -168,6 +191,15 @@ export function MenuManager({
       setError(data?.error ?? "Ürün kaydedilemedi");
     }
     setSaving(false);
+  }
+
+  async function approveNutrition(product: Product) {
+    const fd = new FormData();
+    if (product.calories !== null) fd.set("calories", String(product.calories));
+    fd.set("allergens", JSON.stringify(product.allergens));
+    fd.set("aiApproved", "true");
+    await fetch(`/api/panel/products/${product.id}`, { method: "PATCH", body: fd });
+    router.refresh();
   }
 
   async function toggleActive(product: Product) {
@@ -275,14 +307,29 @@ export function MenuManager({
                       <div className="mt-1 flex flex-wrap gap-1">
                         {!product.active && <Badge tone="danger">Pasif</Badge>}
                         {product.calories !== null && (
-                          <Badge tone="neutral">~{product.calories} kcal</Badge>
+                          <Badge tone={product.aiApproved ? "neutral" : "warn"}>
+                            ~{product.calories} kcal
+                            {!product.aiApproved && " · onay bekliyor"}
+                          </Badge>
                         )}
                         {product.allergens.length > 0 && (
-                          <Badge tone="warn">{product.allergens.length} alerjen</Badge>
+                          <Badge tone="warn">
+                            {product.allergens.length} alerjen
+                            {!product.aiApproved && " · onay bekliyor"}
+                          </Badge>
                         )}
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col gap-2">
+                      {product.calories !== null && !product.aiApproved && (
+                        <button
+                          type="button"
+                          onClick={() => approveNutrition(product)}
+                          className={`${btnClass} border-gold/40 text-gold hover:border-gold`}
+                        >
+                          AI Onayla
+                        </button>
+                      )}
                       <button type="button" onClick={() => openEdit(product)} className={`${btnClass} hover:border-gold-dark`}>
                         Düzenle
                       </button>
@@ -405,9 +452,41 @@ export function MenuManager({
                 <p className="mt-2 text-xs text-cream-dim">
                   Reçete miktarı malzeme birimiyle aynıdır (g, ml veya adet). Ör: kahve malzemesi
                   g birimindeyse reçeteye 18 yazın = 18 gram. Kaydettiğinizde kalori ve alerjen
-                  bilgisi otomatik hesaplanır.
+                  bilgisi otomatik hesaplanır; menüde yayınlamak için onaylamanız gerekir.
                 </p>
               </div>
+
+              {form.id && (
+                <div className="rounded-xl border border-ink-line p-3 space-y-3">
+                  <Label>Kalori & Alerjen (AI önerisi veya elle)</Label>
+                  <div>
+                    <Label>Kalori (kcal)</Label>
+                    <Input
+                      value={form.calories}
+                      onChange={(e) => setForm({ ...form, calories: e.target.value })}
+                      inputMode="numeric"
+                      placeholder="ör: 450"
+                    />
+                  </div>
+                  <div>
+                    <Label>Alerjenler (virgülle ayırın)</Label>
+                    <Input
+                      value={form.allergens}
+                      onChange={(e) => setForm({ ...form, allergens: e.target.value })}
+                      placeholder="ör: gluten, süt ürünleri"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.aiApproved}
+                      onChange={(e) => setForm({ ...form, aiApproved: e.target.checked })}
+                      className="h-4 w-4 accent-gold"
+                    />
+                    Menüde yayınla (onaylandı)
+                  </label>
+                </div>
+              )}
 
               {variantsEnabled && (
                 <div className="rounded-xl border border-ink-line p-3">

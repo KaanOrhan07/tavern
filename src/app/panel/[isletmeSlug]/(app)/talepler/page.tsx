@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getPanelSessionFor } from "@/lib/auth";
+import { requireRestaurantModule } from "@/lib/panel-module-guard";
 import { isFeatureEnabled } from "@/lib/features";
 import { RequestsBoard } from "@/components/panel/RequestsBoard";
 
@@ -17,6 +18,7 @@ export default async function RequestsPage({
   if (!(await isFeatureEnabled(session.businessId, "staff_requests"))) {
     redirect(`/panel/${isletmeSlug}/masalar`);
   }
+  await requireRestaurantModule(isletmeSlug, session.businessId);
 
   const requests = await prisma.staffRequest.findMany({
     where: { businessId: session.businessId },

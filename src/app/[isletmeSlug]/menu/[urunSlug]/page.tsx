@@ -96,8 +96,8 @@ export default async function PublicProductPage({
         </div>
       )}
 
-      {/* Kalori / alerjen — hesaplandıysa gösterilir */}
-      {(product.calories !== null || product.allergens.length > 0) && (
+      {/* Kalori / alerjen — işletme onayladıysa gösterilir */}
+      {product.aiApproved && (product.calories !== null || product.allergens.length > 0) && (
         <div className="rounded-xl border border-ink-line bg-ink-card p-4">
           {product.calories !== null && (
             <p className="text-sm">

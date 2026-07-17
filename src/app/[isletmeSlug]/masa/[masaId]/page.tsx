@@ -1,8 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { isFeatureEnabled } from "@/lib/features";
-import { isOutOfStock } from "@/lib/stock";
-import { resolveProductCart } from "@/lib/menu-products";
+import { loadPublicMenuData } from "@/lib/public-menu-data";
 import { CustomerTable } from "@/components/musteri/CustomerTable";
 
 export const dynamic = "force-dynamic";
@@ -22,30 +20,7 @@ export default async function CustomerTablePage({
     notFound();
   }
 
-  const [categories, stockEnabled, variantsEnabled, loyaltyEnabled] = await Promise.all([
-    prisma.category.findMany({
-      where: { businessId: table.businessId },
-      orderBy: { sortOrder: "asc" },
-      include: {
-        products: {
-          where: { active: true },
-          orderBy: { name: "asc" },
-          include: {
-            variants: { where: { active: true }, orderBy: { sortOrder: "asc" } },
-            recipeItems: {
-              select: {
-                amount: true,
-                ingredient: { select: { quantity: true, unit: true } },
-              },
-            },
-          },
-        },
-      },
-    }),
-    isFeatureEnabled(table.businessId, "stock"),
-    isFeatureEnabled(table.businessId, "product_variants"),
-    isFeatureEnabled(table.businessId, "loyalty_points"),
-  ]);
+  const menuData = await loadPublicMenuData(table.businessId);
 
   return (
     <CustomerTable
@@ -53,29 +28,10 @@ export default async function CustomerTablePage({
       qrToken={table.qrToken}
       tableName={table.name}
       orderMode={table.business.orderMode}
-      loyaltyEnabled={loyaltyEnabled}
-      categories={categories
-        .filter((c) => c.products.length > 0)
-        .map((c) => ({
-          id: c.id,
-          name: c.name,
-          products: c.products.map((p) => {
-            const cart = resolveProductCart(p, variantsEnabled);
-            return {
-              id: p.id,
-              name: p.name,
-              slug: p.slug,
-              priceKurus: p.priceKurus,
-              imageUrl: p.imageUrl,
-              allergens: p.allergens,
-              outOfStock: stockEnabled && isOutOfStock(p),
-              variants: cart.variants,
-              defaultCartKey: cart.defaultCartKey,
-              displayPriceKurus: cart.displayPriceKurus,
-              hasVariants: cart.hasVariants,
-            };
-          }),
-        }))}
+      menuCategories={menuData.menuCategories}
+      dailyProduct={menuData.dailyProduct}
+      suggestionEnabled={menuData.suggestionEnabled}
+      loyaltyEnabled={menuData.loyaltyEnabled}
     />
   );
 }

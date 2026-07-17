@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getPanelSessionFor } from "@/lib/auth";
+import { requireRestaurantModule } from "@/lib/panel-module-guard";
 import { getFeatureMap } from "@/lib/features";
 import { ReportsView } from "@/components/panel/ReportsView";
 
@@ -14,6 +15,7 @@ export default async function ReportsPage({
   const session = await getPanelSessionFor(isletmeSlug);
   if (!session) redirect(`/panel/${isletmeSlug}/giris`);
   if (session.role !== "owner") redirect(`/panel/${isletmeSlug}/masalar`);
+  await requireRestaurantModule(isletmeSlug, session.businessId);
 
   const features = await getFeatureMap(session.businessId);
 

@@ -18,7 +18,10 @@ export default async function PanelAppLayout({
   // Sırayla değil paralel çalıştır: her navigasyonda gecikmeyi azaltır
   // (ikisi de session.businessId'ye bağlı, birbirine bağımlı değil)
   const [business, features] = await Promise.all([
-    prisma.business.findUnique({ where: { id: session.businessId } }),
+    prisma.business.findUnique({
+      where: { id: session.businessId },
+      include: { type: true },
+    }),
     getFeatureMap(session.businessId),
   ]);
   if (!business) redirect("/panel");
@@ -36,6 +39,7 @@ export default async function PanelAppLayout({
     <PanelShell
       slug={isletmeSlug}
       businessName={business.name}
+      businessTypeKey={business.type.key}
       role={session.role}
       userName={session.name}
       features={features}

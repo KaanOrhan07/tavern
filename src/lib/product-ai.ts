@@ -26,7 +26,7 @@ export async function autoFillProductNutrition(businessId: string, productId: st
       data: {
         calories: result.calories,
         allergens: result.allergens,
-        aiApproved: true,
+        aiApproved: false,
       },
     });
   } catch (err) {

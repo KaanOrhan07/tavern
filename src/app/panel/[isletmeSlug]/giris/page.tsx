@@ -33,11 +33,7 @@ export default function PanelLoginPage({
     });
     if (res.ok) {
       const data = await res.json();
-      router.push(
-        data.role === "staff"
-          ? `/panel/${isletmeSlug}/masalar`
-          : `/panel/${isletmeSlug}/dashboard`
-      );
+      router.push(data.redirectPath ?? `/panel/${isletmeSlug}/dashboard`);
       router.refresh();
     } else {
       const data = await res.json().catch(() => null);
