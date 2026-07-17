@@ -44,6 +44,9 @@ export async function POST(request: Request) {
       );
     }
     const updated = await prisma.product.findUnique({ where: { id: body.data.productId } });
+    if (!updated) {
+      return NextResponse.json({ error: "Ürün bulunamadı" }, { status: 404 });
+    }
     return NextResponse.json({
       ok: true,
       calories: updated.calories,
