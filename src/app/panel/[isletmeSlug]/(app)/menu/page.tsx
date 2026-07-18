@@ -55,6 +55,9 @@ export default async function MenuPage({
           active: p.active,
           calories: p.calories,
           allergens: p.allergens,
+          vegan: p.vegan,
+          vegetarian: p.vegetarian,
+          glutenFree: p.glutenFree,
           aiApproved: p.aiApproved,
           categoryId: p.categoryId,
           recipe: p.recipeItems.map((r) => ({

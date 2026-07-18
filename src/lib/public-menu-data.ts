@@ -13,6 +13,9 @@ export type PublicMenuProduct = {
   imageUrl: string;
   calories: number | null;
   allergens: string[];
+  vegan: boolean;
+  vegetarian: boolean;
+  glutenFree: boolean;
   description: string | null;
   outOfStock: boolean;
   variants: { id: string; name: string; priceKurus: number }[];
@@ -74,6 +77,9 @@ export async function loadPublicMenuData(businessId: string): Promise<PublicMenu
       imageUrl: p.imageUrl,
       calories: p.aiApproved ? p.calories : null,
       allergens: p.aiApproved ? p.allergens : [],
+      vegan: p.aiApproved ? p.vegan : false,
+      vegetarian: p.aiApproved ? p.vegetarian : false,
+      glutenFree: p.aiApproved ? p.glutenFree : false,
       description: p.description,
       outOfStock: stockEnabled && isOutOfStock(p),
       variants: cart.variants,

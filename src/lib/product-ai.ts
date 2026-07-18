@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { isFeatureEnabled } from "@/lib/features";
 import { estimateCaloriesAndAllergens } from "@/lib/ai";
 
-/** Ürün kaydından sonra reçeteye göre otomatik kalori/alerjen hesaplar. */
+/** Ürün kaydından sonra reçeteye göre otomatik kalori/alerjen/diyet etiketi hesaplar. */
 export async function autoFillProductNutrition(businessId: string, productId: string) {
   if (!(await isFeatureEnabled(businessId, "ai_calorie"))) return false;
 
@@ -26,6 +26,10 @@ export async function autoFillProductNutrition(businessId: string, productId: st
       data: {
         calories: result.calories,
         allergens: result.allergens,
+        vegan: result.vegan,
+        vegetarian: result.vegetarian,
+        glutenFree: result.glutenFree,
+        // Otomatik etiketleme sonrası menüde görünsün; işletme panelden düzeltebilir
         aiApproved: true,
       },
     });

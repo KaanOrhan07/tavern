@@ -123,6 +123,15 @@ export async function PATCH(
     }
     data.allergens = parsed.map((a) => String(a).trim()).filter(Boolean);
   }
+  if (form.has("vegan")) {
+    data.vegan = String(form.get("vegan")) === "true";
+  }
+  if (form.has("vegetarian")) {
+    data.vegetarian = String(form.get("vegetarian")) === "true";
+  }
+  if (form.has("glutenFree")) {
+    data.glutenFree = String(form.get("glutenFree")) === "true";
+  }
   if (form.has("aiApproved")) {
     data.aiApproved = String(form.get("aiApproved")) === "true";
   }

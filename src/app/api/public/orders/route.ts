@@ -8,6 +8,7 @@ const itemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.number().int().min(1).max(20),
   variantId: z.string().min(1).optional(),
+  note: z.string().max(200).optional(),
 });
 
 const schema = z.object({

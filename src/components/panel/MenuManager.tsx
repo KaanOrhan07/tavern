@@ -18,6 +18,9 @@ type Product = {
   active: boolean;
   calories: number | null;
   allergens: string[];
+  vegan: boolean;
+  vegetarian: boolean;
+  glutenFree: boolean;
   aiApproved: boolean;
   categoryId: string;
   recipe: RecipeRow[];
@@ -36,6 +39,9 @@ const EMPTY_FORM = {
   imageFile: null as File | null,
   calories: "",
   allergens: "",
+  vegan: false,
+  vegetarian: false,
+  glutenFree: false,
   aiApproved: false,
 };
 
@@ -113,6 +119,9 @@ export function MenuManager({
       imageFile: null,
       calories: product.calories !== null ? String(product.calories) : "",
       allergens: product.allergens.join(", "),
+      vegan: product.vegan,
+      vegetarian: product.vegetarian,
+      glutenFree: product.glutenFree,
       aiApproved: product.aiApproved,
     });
     setShowProductForm(true);
@@ -170,6 +179,9 @@ export function MenuManager({
             .filter(Boolean)
         )
       );
+      fd.set("vegan", String(form.vegan));
+      fd.set("vegetarian", String(form.vegetarian));
+      fd.set("glutenFree", String(form.glutenFree));
       fd.set("aiApproved", String(form.aiApproved));
     }
 
@@ -182,7 +194,7 @@ export function MenuManager({
       setShowProductForm(false);
       setForm(EMPTY_FORM);
       router.refresh();
-      // Kalori/alerjen arka planda hesaplanır; birkaç saniye sonra tekrar yenile
+      // Kalori/alerjen/diyet arka planda hesaplanır; birkaç saniye sonra tekrar yenile
       if (hadRecipe) {
         window.setTimeout(() => router.refresh(), 6000);
         window.setTimeout(() => router.refresh(), 15000);
@@ -204,7 +216,9 @@ export function MenuManager({
     });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      setError(data?.error ?? "AI hesaplaması başarısız");
+      setError(
+        data?.error ?? "Otomatik etiketleme başarısız oldu, elle girebilirsiniz"
+      );
     } else {
       router.refresh();
     }
@@ -318,6 +332,11 @@ export function MenuManager({
                         {product.calories !== null && (
                           <Badge tone="neutral">~{product.calories} kcal</Badge>
                         )}
+                        {product.vegan && <Badge tone="ok">Vegan</Badge>}
+                        {!product.vegan && product.vegetarian && (
+                          <Badge tone="ok">Vejetaryen</Badge>
+                        )}
+                        {product.glutenFree && <Badge tone="neutral">Glutensiz</Badge>}
                         {product.allergens.map((allergen) => (
                           <Badge key={allergen} tone="warn">
                             {allergen}
@@ -460,13 +479,14 @@ export function MenuManager({
                 )}
                 <p className="mt-2 text-xs text-cream-dim">
                   Reçete miktarı malzeme birimiyle aynıdır (g, ml veya adet). Kaydettiğinizde AI
-                  reçeteye göre kalori miktarını hesaplar ve alerjen etiketlerini otomatik ekler.
+                  reçeteye göre kalori, vegan/vejetaryen/glutensiz etiketlerini ve alerjen
+                  malzemeleri otomatik hesaplar.
                 </p>
               </div>
 
               {form.id && (
                 <div className="rounded-xl border border-ink-line p-3 space-y-3">
-                  <Label>Kalori & Alerjen (AI önerisi veya elle)</Label>
+                  <Label>Kalori, Diyet & Alerjen (AI önerisi — elle düzeltilebilir)</Label>
                   <div>
                     <Label>Kalori (kcal)</Label>
                     <Input
@@ -476,12 +496,53 @@ export function MenuManager({
                       placeholder="ör: 450"
                     />
                   </div>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.vegan}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            vegan: e.target.checked,
+                            vegetarian: e.target.checked ? true : form.vegetarian,
+                          })
+                        }
+                        className="h-4 w-4 accent-gold"
+                      />
+                      Vegan
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.vegetarian}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            vegetarian: e.target.checked,
+                            vegan: e.target.checked ? form.vegan : false,
+                          })
+                        }
+                        className="h-4 w-4 accent-gold"
+                      />
+                      Vejetaryen
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.glutenFree}
+                        onChange={(e) => setForm({ ...form, glutenFree: e.target.checked })}
+                        className="h-4 w-4 accent-gold"
+                      />
+                      Glutensiz
+                    </label>
+                  </div>
                   <div>
-                    <Label>Alerjenler (virgülle ayırın)</Label>
+                    <Label>Alerjen malzemeler (virgülle ayırın)</Label>
                     <Input
                       value={form.allergens}
                       onChange={(e) => setForm({ ...form, allergens: e.target.value })}
-                      placeholder="ör: gluten, süt ürünleri"
+                      placeholder="ör: Süt, Fıstık"
                     />
                   </div>
                   <label className="flex items-center gap-2 text-sm cursor-pointer">

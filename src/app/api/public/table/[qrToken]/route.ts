@@ -37,6 +37,7 @@ export async function GET(
             quantity: i.quantity,
             paidQuantity: i.paidQuantity,
             delivered: i.delivered,
+            note: i.note,
           })),
         }
       : null,

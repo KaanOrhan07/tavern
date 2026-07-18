@@ -25,7 +25,7 @@ export function ProductAddToCart({
   businessSlug: string;
   loyaltyEnabled: boolean;
 }) {
-  const { cart, add, clear } = useCart(qrToken);
+  const { cart, notes, add, clear } = useCart(qrToken);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState(variants[0]?.id ?? "");
 
@@ -102,6 +102,7 @@ export function ProductAddToCart({
       <CartBar
         qrToken={qrToken}
         cart={cart}
+        notes={notes}
         priceByLineKey={priceByLineKey}
         businessSlug={businessSlug}
         loyaltyEnabled={loyaltyEnabled}

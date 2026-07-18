@@ -51,11 +51,17 @@ export async function POST(request: Request) {
       ok: true,
       calories: updated.calories,
       allergens: updated.allergens,
+      vegan: updated.vegan,
+      vegetarian: updated.vegetarian,
+      glutenFree: updated.glutenFree,
       aiApproved: updated.aiApproved,
     });
   } catch {
     return NextResponse.json(
-      { error: "AI hesaplaması başarısız oldu, tekrar deneyin" },
+      {
+        error:
+          "Otomatik etiketleme başarısız oldu, elle girebilirsiniz",
+      },
       { status: 502 }
     );
   }

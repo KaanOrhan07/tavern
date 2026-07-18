@@ -101,20 +101,72 @@ async function askJson<T>(system: string, user: string): Promise<T> {
   throw new Error(lastError);
 }
 
-// --- Kalori / Alerjen ---
+// --- Kalori / Alerjen / Diyet etiketleri ---
 
 export type RecipeInput = { name: string; unit: string; amount: number }[];
-export type CalorieResult = { calories: number; allergens: string[] };
+export type CalorieResult = {
+  calories: number;
+  allergens: string[];
+  vegan: boolean;
+  vegetarian: boolean;
+  glutenFree: boolean;
+};
 
-function normalizeCalorieResult(raw: CalorieResult): CalorieResult {
-  const calories = Math.max(0, Math.round(Number(raw.calories)));
-  const allergens = Array.isArray(raw.allergens)
-    ? [...new Set(raw.allergens.map((a) => String(a).trim()).filter(Boolean))]
-    : [];
+type RawCalorieResult = {
+  calories?: unknown;
+  kalori?: unknown;
+  allergens?: unknown;
+  alerjenMalzemeler?: unknown;
+  vegan?: unknown;
+  vegetarian?: unknown;
+  vejetaryen?: unknown;
+  glutenFree?: unknown;
+  glutensiz?: unknown;
+  diyetEtiketleri?: {
+    vegan?: unknown;
+    vejetaryen?: unknown;
+    vegetarian?: unknown;
+    glutensiz?: unknown;
+    glutenFree?: unknown;
+  };
+};
+
+function asBool(value: unknown): boolean {
+  return value === true || value === "true";
+}
+
+function normalizeCalorieResult(raw: RawCalorieResult): CalorieResult {
+  const calories = Math.max(
+    0,
+    Math.round(Number(raw.calories ?? raw.kalori))
+  );
+  const allergenSource = Array.isArray(raw.allergens)
+    ? raw.allergens
+    : Array.isArray(raw.alerjenMalzemeler)
+      ? raw.alerjenMalzemeler
+      : [];
+  const allergens = [
+    ...new Set(allergenSource.map((a) => String(a).trim()).filter(Boolean)),
+  ];
   if (!Number.isFinite(calories)) {
     throw new Error("AI geçersiz kalori değeri döndürdü");
   }
-  return { calories, allergens };
+  const diet = raw.diyetEtiketleri ?? {};
+  const vegan = asBool(raw.vegan ?? diet.vegan);
+  const vegetarian = asBool(
+    raw.vegetarian ?? raw.vejetaryen ?? diet.vegetarian ?? diet.vejetaryen
+  );
+  const glutenFree = asBool(
+    raw.glutenFree ?? raw.glutensiz ?? diet.glutenFree ?? diet.glutensiz
+  );
+  return {
+    calories,
+    allergens,
+    vegan,
+    // Vegan ise otomatik vejetaryen de sayılır
+    vegetarian: vegan || vegetarian,
+    glutenFree,
+  };
 }
 
 export async function estimateCaloriesAndAllergens(
@@ -122,9 +174,22 @@ export async function estimateCaloriesAndAllergens(
   recipe: RecipeInput
 ): Promise<CalorieResult> {
   const list = recipe.map((r) => `- ${r.name}: ${r.amount} ${r.unit}`).join("\n");
-  const result = await askJson<CalorieResult>(
-    "Sen bir gıda ve beslenme uzmanısın. Verilen reçeteye göre porsiyon başına toplam kaloriyi ve olası alerjenleri Türkçe olarak hesaplarsın.",
-    `Ürün: ${productName}\nReçete:\n${list}\n\nŞu formatta yanıt ver: {"calories": <toplam kalori, tam sayı>, "allergens": ["gluten", "süt ürünleri", ...]}. Alerjen yoksa boş dizi döndür. Yaygın alerjenler: gluten, süt ürünleri, yumurta, fındık/fıstık, soya, balık, kabuklu deniz ürünleri, susam, hardal, kereviz.`
+  const result = await askJson<RawCalorieResult>(
+    "Sen bir gıda ve beslenme uzmanısın. Verilen reçeteye göre porsiyon başına toplam kaloriyi, diyet etiketlerini ve olası alerjen malzemeleri Türkçe olarak hesaplarsın.",
+    `Ürün: ${productName}
+Reçete:
+${list}
+
+SADECE şu JSON formatında yanıt ver, başka hiçbir metin ekleme:
+{
+  "calories": <toplam kalori, tam sayı>,
+  "vegan": <true/false — reçetede hayvansal hiçbir ürün yoksa (et, süt, yumurta, bal, süt ürünleri vb.)>,
+  "vegetarian": <true/false — reçetede et/balık yoksa; süt/yumurta/bal olabilir>,
+  "glutenFree": <true/false — buğday, arpa, çavdar gibi gluten içeren malzeme yoksa>,
+  "allergens": ["malzeme adı", ...]
+}
+
+Alerjen yoksa boş dizi döndür. Alerjenleri kategorize etme; reçetedeki bilinen alerjen malzeme adlarını yaz (ör. "Süt", "Fıstık", "Yumurta"). Yaygın alerjenler: fıstık, süt, yumurta, gluten, kabuklu deniz ürünleri, soya, susam, balık, fındık.`
   );
   return normalizeCalorieResult(result);
 }

@@ -1,10 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { defaultCustomerPath } from "@/lib/business-modules";
+import { defaultCustomerPath, isBarberBusiness } from "@/lib/business-modules";
+import { loadPublicMenuData } from "@/lib/public-menu-data";
+import { CustomerMenuApp } from "@/components/musteri/CustomerMenuApp";
 
 export const dynamic = "force-dynamic";
 
-/** Müşteri kısa linki: /{slug} → menü veya randevu sayfasına yönlendirir. */
+/** Müşteri kısa linki: restoran → karşılama+menü, berber → randevu. */
 export default async function BusinessLandingPage({
   params,
 }: {
@@ -17,5 +19,25 @@ export default async function BusinessLandingPage({
   });
   if (!business || !business.active) notFound();
 
-  redirect(defaultCustomerPath(isletmeSlug, business.type.key));
+  if (isBarberBusiness(business.type.key)) {
+    redirect(defaultCustomerPath(isletmeSlug, business.type.key));
+  }
+
+  const menuData = await loadPublicMenuData(business.id);
+
+  return (
+    <CustomerMenuApp
+      slug={isletmeSlug}
+      businessName={business.name}
+      logoUrl={business.logoUrl}
+      bannerUrl={business.bannerUrl}
+      qrToken={null}
+      tableName={null}
+      menuCategories={menuData.menuCategories}
+      dailyProduct={menuData.dailyProduct}
+      suggestionEnabled={menuData.suggestionEnabled}
+      loyaltyEnabled={menuData.loyaltyEnabled}
+      startOnWelcome
+    />
+  );
 }

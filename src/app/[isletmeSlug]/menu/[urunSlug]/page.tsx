@@ -96,32 +96,40 @@ export default async function PublicProductPage({
         </div>
       )}
 
-      {/* Kalori / alerjen — işletme onayladıysa gösterilir */}
-      {product.aiApproved && (product.calories !== null || product.allergens.length > 0) && (
-        <div className="rounded-xl border border-ink-line bg-ink-card p-4">
-          {product.calories !== null && (
+      {/* Kalori / diyet / alerjen — işletme onayladıysa gösterilir */}
+      {product.aiApproved &&
+        (product.calories !== null ||
+          product.allergens.length > 0 ||
+          product.vegan ||
+          product.vegetarian ||
+          product.glutenFree) && (
+          <div className="rounded-xl border border-ink-line bg-ink-card p-4">
             <p className="text-sm">
-              <span className="font-medium">Kalori:</span>{" "}
-              <span className="text-gold">~{product.calories} kcal</span>
+              {[
+                product.calories !== null ? `${product.calories} kalori` : null,
+                product.vegan ? "Vegan" : product.vegetarian ? "Vejetaryen" : null,
+                product.glutenFree ? "Glutensiz" : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
-          )}
-          {product.allergens.length > 0 ? (
-            <p className="mt-2 text-sm text-warn">
-              ⚠ Alerjen uyarısı: {product.allergens.join(", ")}
-            </p>
-          ) : (
-            product.calories !== null && (
-              <p className="mt-2 text-sm text-cream-dim">
-                Bilinen yaygın alerjen içermez.
+            {product.allergens.length > 0 ? (
+              <p className="mt-2 text-sm text-warn">
+                Alerjen Malzeme: {product.allergens.join(", ")}
               </p>
-            )
-          )}
-          <p className="mt-3 text-[11px] text-cream-dim/70">
-            Kalori ve alerjen bilgileri yapay zekâ desteğiyle hesaplanmıştır. Ciddi
-            alerjiniz varsa personele danışın.
-          </p>
-        </div>
-      )}
+            ) : (
+              product.calories !== null && (
+                <p className="mt-2 text-sm text-cream-dim">
+                  Bilinen yaygın alerjen içermez.
+                </p>
+              )
+            )}
+            <p className="mt-3 text-[11px] text-cream-dim/70">
+              Kalori ve alerjen bilgileri yapay zekâ desteğiyle hesaplanmıştır. Ciddi
+              alerjiniz varsa personele danışın.
+            </p>
+          </div>
+        )}
 
       {canOrder && (
         <ProductAddToCart

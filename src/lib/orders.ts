@@ -5,7 +5,12 @@ import { afterDeduction, recipeDeductionBase } from "@/lib/units";
 import { earnLoyaltyPoints, redeemLoyaltyPoints, restoreLoyaltyRedeem } from "@/lib/loyalty";
 import type { OrderSource } from "@/generated/prisma/client";
 
-export type NewOrderItem = { productId: string; quantity: number; variantId?: string };
+export type NewOrderItem = {
+  productId: string;
+  quantity: number;
+  variantId?: string;
+  note?: string;
+};
 
 /**
  * Masaya sipariş ekler: masanın açık siparişi varsa ona kalem ekler, yoksa
@@ -95,6 +100,8 @@ export async function addItemsToTable(params: {
       const unitKurus = variant?.priceKurus ?? product.priceKurus;
       const productName = variant ? `${product.name} (${variant.name})` : product.name;
 
+      const note = item.note?.trim() ? item.note.trim().slice(0, 200) : null;
+
       createdItems.push(
         await tx.orderItem.create({
           data: {
@@ -104,6 +111,7 @@ export async function addItemsToTable(params: {
             productName,
             unitKurus,
             quantity: item.quantity,
+            note,
           },
         })
       );

@@ -137,9 +137,12 @@ model Product {
   description String?
   active      Boolean  @default(true)
 
-  // AI kalori/alerjen çıktısı — işletme onaylayana kadar müşteriye gösterilmez
+  // AI kalori/alerjen/diyet çıktısı — işletme onaylayana kadar müşteriye gösterilmez
   calories    Int?
   allergens   String[] @default([])
+  vegan       Boolean  @default(false)
+  vegetarian  Boolean  @default(false)
+  glutenFree  Boolean  @default(false)
   aiApproved  Boolean  @default(false)
 
   createdAt DateTime @default(now())
@@ -238,6 +241,7 @@ model OrderItem {
   productName  String // sipariş anındaki ad (snapshot, varyant adı dahil)
   unitKurus    Int // sipariş anındaki birim fiyat (snapshot)
   quantity     Int
+  note         String? // müşteri notu (ör. "şekersiz olsun")
   paidQuantity Int      @default(0) // kısmi ödeme: kaç adedi ödendi
   delivered    Boolean  @default(false)
   createdAt    DateTime @default(now())
@@ -284,6 +288,7 @@ enum NotificationType {
   NEW_ORDER
   NEW_REQUEST
   CALL_WAITER
+  REQUEST_BILL
   NEW_APPOINTMENT
 }
 

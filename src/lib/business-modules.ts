@@ -21,5 +21,5 @@ export function defaultStaffPath(slug: string, typeKey: string) {
 }
 
 export function defaultCustomerPath(slug: string, typeKey: string) {
-  return isBarberBusiness(typeKey) ? `/${slug}/randevu` : `/${slug}/menu`;
+  return isBarberBusiness(typeKey) ? `/${slug}/randevu` : `/${slug}`;
 }

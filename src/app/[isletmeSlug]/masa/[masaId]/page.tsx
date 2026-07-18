@@ -25,6 +25,9 @@ export default async function CustomerTablePage({
   return (
     <CustomerTable
       slug={isletmeSlug}
+      businessName={table.business.name}
+      logoUrl={table.business.logoUrl}
+      bannerUrl={table.business.bannerUrl}
       qrToken={table.qrToken}
       tableName={table.name}
       orderMode={table.business.orderMode}

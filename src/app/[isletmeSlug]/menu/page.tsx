@@ -1,9 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { loadPublicMenuData } from "@/lib/public-menu-data";
-import { SuggestionWidget } from "@/components/musteri/SuggestionWidget";
-import { DailyPick } from "@/components/musteri/DailyPick";
-import { MenuList } from "@/components/musteri/MenuList";
+import { CustomerMenuApp } from "@/components/musteri/CustomerMenuApp";
 
 export const dynamic = "force-dynamic";
 
@@ -28,30 +26,21 @@ export default async function PublicMenuPage({
 
   const canOrder =
     business.orderMode === "CUSTOMER_QR" && table !== null && table.businessId === business.id;
-  const qrToken = canOrder ? masa! : null;
 
   return (
-    <div className="space-y-8 pb-32">
-      <h1 className="text-lg font-semibold">Menü</h1>
-
-      {menuData.dailyProduct && (
-        <DailyPick product={menuData.dailyProduct} isletmeSlug={isletmeSlug} masa={masa} />
-      )}
-
-      {menuData.suggestionEnabled && <SuggestionWidget slug={isletmeSlug} />}
-
-      {menuData.menuCategories.length === 0 ? (
-        <p className="py-12 text-center text-sm text-cream-dim">
-          Menü henüz hazırlanıyor.
-        </p>
-      ) : (
-        <MenuList
-          isletmeSlug={isletmeSlug}
-          categories={menuData.menuCategories}
-          qrToken={qrToken}
-          loyaltyEnabled={menuData.loyaltyEnabled}
-        />
-      )}
-    </div>
+    <CustomerMenuApp
+      slug={isletmeSlug}
+      businessName={business.name}
+      logoUrl={business.logoUrl}
+      bannerUrl={business.bannerUrl}
+      qrToken={table && table.businessId === business.id ? masa! : null}
+      canOrder={canOrder}
+      tableName={table && table.businessId === business.id ? table.name : null}
+      menuCategories={menuData.menuCategories}
+      dailyProduct={menuData.dailyProduct}
+      suggestionEnabled={menuData.suggestionEnabled}
+      loyaltyEnabled={menuData.loyaltyEnabled}
+      startOnWelcome
+    />
   );
 }
