@@ -79,7 +79,14 @@ export async function PATCH(
 
   const image = form.get("image");
   if (image instanceof File && image.size > 0) {
-    data.imageUrl = await uploadProductImage(ctx.business.id, image);
+    try {
+      data.imageUrl = await uploadProductImage(ctx.business.id, image);
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Fotoğraf yüklenemedi" },
+        { status: 400 }
+      );
+    }
   }
 
   let recipeChanged = false;

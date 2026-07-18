@@ -4,6 +4,7 @@ import { getTopSellingProducts } from "@/lib/best-sellers";
 import { pickDailyProduct } from "@/lib/daily-pick";
 import { isOutOfStock } from "@/lib/stock";
 import { resolveProductCart } from "@/lib/menu-products";
+import { toDisplayImageUrl } from "@/lib/storage-url";
 
 export type PublicMenuProduct = {
   id: string;
@@ -74,7 +75,7 @@ export async function loadPublicMenuData(businessId: string): Promise<PublicMenu
       name: p.name,
       slug: p.slug,
       priceKurus: p.priceKurus,
-      imageUrl: p.imageUrl,
+      imageUrl: toDisplayImageUrl(p.imageUrl),
       calories: p.aiApproved ? p.calories : null,
       allergens: p.aiApproved ? p.allergens : [],
       vegan: p.aiApproved ? p.vegan : false,

@@ -78,7 +78,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Reçetedeki malzeme bulunamadı" }, { status: 404 });
   }
 
-  const imageUrl = await uploadProductImage(ctx.business.id, image);
+  let imageUrl: string;
+  try {
+    imageUrl = await uploadProductImage(ctx.business.id, image);
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Fotoğraf yüklenemedi" },
+      { status: 400 }
+    );
+  }
 
   const base = slugify(name);
   let slug = base;

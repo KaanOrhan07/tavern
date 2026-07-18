@@ -84,39 +84,39 @@ export function MenuList({
 
   return (
     <>
-      <div className="sticky top-[3.75rem] z-10 -mx-4 mb-4 border-b border-ink-line bg-ink/95 px-4 backdrop-blur">
-        <div className="flex items-center justify-end py-2">
+      <div className="sticky top-14 z-10 -mx-4 mb-3 border-b border-ink-line bg-ink/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-ink/90">
+        <div className="flex items-center gap-2 py-2">
+          <div
+            ref={tabsRef}
+            className="flex min-w-0 flex-1 gap-2 overflow-x-auto overscroll-x-contain touch-pan-x [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {categories.map((category) => {
+              const active = category.id === activeCategory?.id;
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  data-cat={category.id}
+                  onClick={() => selectCategory(category.id)}
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
+                    active
+                      ? "bg-cream text-ink"
+                      : "bg-ink-card text-cream-dim"
+                  }`}
+                >
+                  {category.name}
+                </button>
+              );
+            })}
+          </div>
           <button
             type="button"
             aria-label="Kategoriler"
             onClick={() => setCategoryNavOpen((v) => !v)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-ink-line text-cream-dim cursor-pointer"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-line text-cream-dim cursor-pointer"
           >
             ☰
           </button>
-        </div>
-        <div
-          ref={tabsRef}
-          className="flex gap-2 overflow-x-auto pb-3 scrollbar-none"
-        >
-          {categories.map((category) => {
-            const active = category.id === activeCategory?.id;
-            return (
-              <button
-                key={category.id}
-                type="button"
-                data-cat={category.id}
-                onClick={() => selectCategory(category.id)}
-                className={`shrink-0 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors cursor-pointer ${
-                  active
-                    ? "bg-cream text-ink"
-                    : "bg-ink-card text-cream-dim hover:text-cream"
-                }`}
-              >
-                {category.name}
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -151,7 +151,7 @@ export function MenuList({
       )}
 
       {activeCategory && (
-        <section className="pb-36">
+        <section className="min-w-0">
           <h2 className="mb-3 text-sm font-semibold text-cream">
             {activeCategory.name}
             <span className="ml-1.5 font-normal text-cream-dim">
@@ -164,17 +164,17 @@ export function MenuList({
                 key={product.id}
                 type="button"
                 onClick={() => setSelectedProduct(product)}
-                className={`flex w-full items-center gap-3.5 rounded-xl border border-ink-line bg-ink-card p-3 text-left transition-colors hover:border-gold-dark cursor-pointer ${
+                className={`flex w-full max-w-full items-center gap-3 rounded-xl border border-ink-line bg-ink-card p-2.5 text-left transition-colors active:border-gold-dark cursor-pointer ${
                   product.outOfStock ? "opacity-60" : ""
                 }`}
               >
                 <ProductImage
                   src={product.imageUrl}
                   alt={product.name}
-                  className="h-20 w-20 shrink-0 rounded-lg bg-ink-soft object-cover"
+                  className="h-[4.5rem] w-[4.5rem] shrink-0 rounded-lg bg-ink-soft object-cover"
                 />
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">{product.name}</p>
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <p className="truncate font-medium">{product.name}</p>
                   <p className="mt-0.5 font-semibold text-gold">
                     {formatKurus(product.displayPriceKurus)}
                     {product.hasVariants ? "'den" : ""}

@@ -19,9 +19,22 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  overflow-x: clip;
+}
+
 body {
   background: var(--color-ink);
   color: var(--color-cream);
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Müşteri menüsü: yatay taşmayı ve iOS bounce kaymasını azalt */
+[data-tavern-theme] {
+  max-width: 100vw;
+  overflow-x: clip;
 }
 
 /*

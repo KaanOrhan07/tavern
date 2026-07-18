@@ -55,13 +55,13 @@ export function ProductDetailSheet({
         className="absolute inset-0 bg-ink/70 backdrop-blur-sm cursor-pointer"
         onClick={onClose}
       />
-      <div className="relative z-10 flex max-h-[92vh] w-full max-w-2xl flex-col rounded-t-2xl border border-ink-line bg-ink-card shadow-2xl [animation:sheet-up_0.28s_ease-out]">
-        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-ink-line" />
-        <div className="overflow-y-auto px-4 pb-6 pt-3">
+      <div className="relative z-10 flex max-h-[min(92dvh,92vh)] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-ink-line bg-ink-card shadow-2xl [animation:sheet-up_0.28s_ease-out]">
+        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-ink-line" />
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 [-webkit-overflow-scrolling:touch]">
           <ProductImage
             src={product.imageUrl}
             alt={product.name}
-            className="aspect-[4/3] w-full rounded-xl bg-ink-soft object-cover"
+            className="aspect-[4/3] w-full max-h-[40dvh] rounded-xl bg-ink-soft object-cover"
           />
 
           <div className="mt-4 flex items-start justify-between gap-3">

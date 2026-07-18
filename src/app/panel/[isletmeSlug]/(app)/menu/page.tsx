@@ -4,6 +4,7 @@ import { getPanelSessionFor } from "@/lib/auth";
 import { requireRestaurantModule } from "@/lib/panel-module-guard";
 import { isFeatureEnabled } from "@/lib/features";
 import { MenuManager } from "@/components/panel/MenuManager";
+import { toDisplayImageUrl } from "@/lib/storage-url";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,7 @@ export default async function MenuPage({
           id: p.id,
           name: p.name,
           priceKurus: p.priceKurus,
-          imageUrl: p.imageUrl,
+          imageUrl: toDisplayImageUrl(p.imageUrl),
           description: p.description,
           active: p.active,
           calories: p.calories,
