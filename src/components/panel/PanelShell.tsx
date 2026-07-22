@@ -44,6 +44,7 @@ export function PanelShell({
   const restaurantItems: NavItem[] = [
     { href: `${base}/dashboard`, label: "Genel Bakış", icon: "◈", ownerOnly: true },
     { href: `${base}/masalar`, label: "Masalar", icon: "▦" },
+    { href: `${base}/adisyon`, label: "Adisyon", icon: "◉" },
     { href: `${base}/menu`, label: "Menü", icon: "☰", ownerOnly: true },
     { href: `${base}/stok`, label: "Stok", icon: "▤", ownerOnly: true, feature: "stock" },
     { href: `${base}/personeller`, label: "Personeller", icon: "◎", ownerOnly: true },

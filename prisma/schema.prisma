@@ -39,6 +39,7 @@ model Business {
   theme     Theme     @default(DARK) // Müşteri QR menüsünün teması
   logoUrl   String?   // İşletme logosu (müşteri menüsü)
   bannerUrl String?   // İşletme banner görseli (müşteri menüsü)
+  kitchenCompletedClearMinutes Int @default(30) // Adisyon: tamamlanan kartların ekranda kalma süresi
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -243,7 +244,9 @@ model OrderItem {
   quantity     Int
   note         String? // müşteri notu (ör. "şekersiz olsun")
   paidQuantity Int      @default(0) // kısmi ödeme: kaç adedi ödendi
-  delivered    Boolean  @default(false)
+  prepared     Boolean  @default(false) // mutfak/adisyon: hazırlandı
+  preparedAt   DateTime?
+  delivered    Boolean  @default(false) // garson: müşteriye teslim edildi
   createdAt    DateTime @default(now())
 }
 

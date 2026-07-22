@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { isPrinterConnected, printKitchenTicket } from "@/lib/printer";
+import {
+  addNotificationAudioContext,
+  playNotificationChimeOnce,
+  removeNotificationAudioContext,
+} from "@/lib/notification-chime";
 
 type Notification = {
   id: string;
@@ -16,23 +21,6 @@ function parseTableName(message: string): string | null {
   return match?.[1]?.trim() ?? null;
 }
 
-/** Web Audio ile kısa, iki tonlu bir uyarı sesi çalar (ses dosyası gerekmez). */
-function playChime(ctx: AudioContext) {
-  const now = ctx.currentTime;
-  [880, 1174.66].forEach((freq, i) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0, now + i * 0.15);
-    gain.gain.linearRampToValueAtTime(0.25, now + i * 0.15 + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.4);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(now + i * 0.15);
-    osc.stop(now + i * 0.15 + 0.45);
-  });
-}
-
 const POLL_INTERVAL_MS = 15_000;
 
 /**
@@ -44,7 +32,6 @@ const POLL_INTERVAL_MS = 15_000;
  */
 type Listener = (items: Notification[]) => void;
 const listeners = new Set<Listener>();
-const audioContexts = new Set<AudioContext>();
 let printerEnabledRef = false;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let knownIds: Set<string> | null = null;
@@ -52,12 +39,7 @@ const printedIds = new Set<string>();
 
 /** Birden fazla mount olsa da uyarı sesi tek bir cihazdan yalnızca bir kez çalınır. */
 function chimeOnce() {
-  for (const ctx of audioContexts) {
-    if (ctx.state === "running") {
-      playChime(ctx);
-      return;
-    }
-  }
+  playNotificationChimeOnce();
 }
 
 async function pollOnce() {
@@ -141,7 +123,7 @@ export function NotificationCenter({
     function unlock() {
       if (!audioCtxRef.current) {
         audioCtxRef.current = new AudioContext();
-        audioContexts.add(audioCtxRef.current);
+        addNotificationAudioContext(audioCtxRef.current);
       }
       audioCtxRef.current.resume();
       window.removeEventListener("pointerdown", unlock);
@@ -153,7 +135,7 @@ export function NotificationCenter({
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
       if (audioCtxRef.current) {
-        audioContexts.delete(audioCtxRef.current);
+        removeNotificationAudioContext(audioCtxRef.current);
         audioCtxRef.current.close().catch(() => {});
         audioCtxRef.current = null;
       }

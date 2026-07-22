@@ -23,6 +23,7 @@ export function SettingsView({
   loyaltyEnabled,
   isBarber,
   businessSlug,
+  kitchenCompletedClearMinutes,
 }: {
   businessName: string;
   logoUrl: string | null;
@@ -33,6 +34,7 @@ export function SettingsView({
   loyaltyEnabled: boolean;
   isBarber: boolean;
   businessSlug: string;
+  kitchenCompletedClearMinutes: number;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState(orderMode);
@@ -56,6 +58,10 @@ export function SettingsView({
   const [openTime, setOpenTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("20:00");
   const [savingBarber, setSavingBarber] = useState(false);
+  const [kitchenClearMinutes, setKitchenClearMinutes] = useState(
+    String(kitchenCompletedClearMinutes)
+  );
+  const [savingKitchen, setSavingKitchen] = useState(false);
 
   useEffect(() => {
     if (!isBarber) return;
@@ -208,6 +214,22 @@ export function SettingsView({
       setError(data?.error ?? "Toplu zam uygulanamadı");
     }
     setSavingBulk(false);
+  }
+
+  async function saveKitchenClear(minutes: number) {
+    setSavingKitchen(true);
+    setError(null);
+    const res = await fetch("/api/panel/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kitchenCompletedClearMinutes: minutes }),
+    });
+    if (!res.ok) setError("Adisyon ayarı kaydedilemedi");
+    else {
+      setKitchenClearMinutes(String(minutes));
+      setOkMessage("Adisyon ayarı güncellendi");
+    }
+    setSavingKitchen(false);
   }
 
   async function connectPrinter(kind: "bluetooth" | "usb") {
@@ -522,6 +544,60 @@ export function SettingsView({
           {themeOption("LIGHT", "Açık Tema", "Krem/beyaz zemin, koyu metin.")}
         </div>
       </Card>
+
+      {!isBarber && (
+        <Card>
+          <p className="mb-1 font-medium">Adisyon Ekranı</p>
+          <p className="mb-4 text-xs text-cream-dim">
+            Tamamlanan sipariş kartları ekrandan ne kadar süre sonra kalksın? (Veri silinmez,
+            yalnızca görünüm temizlenir.)
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {[15, 30, 60].map((m) => (
+              <button
+                key={m}
+                type="button"
+                disabled={savingKitchen}
+                onClick={() => saveKitchenClear(m)}
+                className={`rounded-lg border px-3 py-2 text-sm cursor-pointer disabled:opacity-50 ${
+                  Number(kitchenClearMinutes) === m
+                    ? "border-gold bg-gold/10 text-gold"
+                    : "border-ink-line text-cream-dim"
+                }`}
+              >
+                {m} dk
+              </button>
+            ))}
+          </div>
+          <form
+            className="mt-4 flex flex-wrap items-end gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const m = Number.parseInt(kitchenClearMinutes, 10);
+              if (!Number.isFinite(m) || m < 5 || m > 480) {
+                setError("Süre 5–480 dakika arasında olmalı");
+                return;
+              }
+              saveKitchenClear(m);
+            }}
+          >
+            <div>
+              <Label>Özel süre (dakika)</Label>
+              <Input
+                type="number"
+                min={5}
+                max={480}
+                value={kitchenClearMinutes}
+                onChange={(e) => setKitchenClearMinutes(e.target.value)}
+                className="w-32"
+              />
+            </div>
+            <Button type="submit" disabled={savingKitchen}>
+              {savingKitchen ? "Kaydediliyor..." : "Kaydet"}
+            </Button>
+          </form>
+        </Card>
+      )}
 
       {printerEnabled && !isBarber && (
         <Card>

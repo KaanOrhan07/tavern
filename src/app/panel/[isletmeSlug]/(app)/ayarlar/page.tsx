@@ -47,6 +47,7 @@ export default async function SettingsPage({
       loyaltyEnabled={features.loyalty_points}
       isBarber={isBarberBusiness(business.type.key)}
       businessSlug={isletmeSlug}
+      kitchenCompletedClearMinutes={business.kitchenCompletedClearMinutes}
     />
   );
 }
