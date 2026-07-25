@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { Button, Card, Input, Label, Select } from "@/components/ui";
 import { formatKurus } from "@/lib/utils";
+import { DEFAULT_BUSINESS_TZ, todayYmdInTz } from "@/lib/business-timezone";
 
 type Service = { id: string; name: string; durationMinutes: number; priceKurus: number };
 type Staff = { id: string; name: string };
-type Slot = { startAt: string; endAt: string };
+type Slot = { startAt: string; endAt: string; label: string };
 
 export function BookingWidget({ slug }: { slug: string }) {
   const [services, setServices] = useState<Service[]>([]);
@@ -51,7 +52,7 @@ export function BookingWidget({ slug }: { slug: string }) {
       .catch(() => setSlots([]));
   }, [slug, serviceId, staffId, date]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayYmdInTz();
   const selectedService = services.find((s) => s.id === serviceId);
 
   async function book(e: React.FormEvent) {
@@ -107,6 +108,7 @@ export function BookingWidget({ slug }: { slug: string }) {
           {new Date(success.startAt).toLocaleString("tr-TR", {
             dateStyle: "full",
             timeStyle: "short",
+            timeZone: DEFAULT_BUSINESS_TZ,
           })}
         </p>
         <Button variant="secondary" onClick={cancelBooking} disabled={loading}>
@@ -178,10 +180,7 @@ export function BookingWidget({ slug }: { slug: string }) {
                       : "border-ink-line hover:border-gold-dark"
                   }`}
                 >
-                  {new Date(slot.startAt).toLocaleTimeString("tr-TR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {slot.label}
                 </button>
               ))}
             </div>

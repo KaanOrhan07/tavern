@@ -4,11 +4,24 @@ import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
 import { isBarberBusiness } from "@/lib/business-modules";
 
-const schema = z.object({
-  slotMinutes: z.union([z.literal(30), z.literal(60)]),
-  openTime: z.string().regex(/^\d{2}:\d{2}$/),
-  closeTime: z.string().regex(/^\d{2}:\d{2}$/),
-});
+function parseHm(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+const schema = z
+  .object({
+    slotMinutes: z.number().int().min(5).max(180),
+    openTime: z.string().regex(/^\d{2}:\d{2}$/),
+    closeTime: z.string().regex(/^\d{2}:\d{2}$/),
+  })
+  .refine((d) => parseHm(d.openTime) < parseHm(d.closeTime), {
+    message: "Açılış saati kapanıştan önce olmalı",
+  })
+  .refine(
+    (d) => parseHm(d.closeTime) - parseHm(d.openTime) >= d.slotMinutes,
+    { message: "Slot süresi çalışma aralığından kısa olamaz" }
+  );
 
 export async function GET() {
   const ctx = await requirePanel({ ownerOnly: true });
@@ -46,7 +59,10 @@ export async function PATCH(request: Request) {
 
   const body = schema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
-    return NextResponse.json({ error: "Geçersiz ayarlar" }, { status: 400 });
+    return NextResponse.json(
+      { error: body.error.issues[0]?.message ?? "Geçersiz ayarlar" },
+      { status: 400 }
+    );
   }
 
   const settings = await prisma.barberSettings.upsert({

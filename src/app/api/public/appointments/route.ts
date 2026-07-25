@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { isBarberBusiness } from "@/lib/business-modules";
 import { isFeatureEnabled } from "@/lib/features";
 import { getAvailableSlots, deductServiceStock } from "@/lib/appointments";
+import { formatDateInTz } from "@/lib/business-timezone";
 import { normalizePhone } from "@/lib/loyalty";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
   }
 
   const startAt = new Date(body.data.startAt);
-  const date = startAt.toISOString().slice(0, 10);
+  const date = formatDateInTz(startAt);
   const slots = await getAvailableSlots({
     businessId: business.id,
     serviceId: body.data.serviceId,

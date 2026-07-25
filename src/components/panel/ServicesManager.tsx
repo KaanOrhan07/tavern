@@ -165,42 +165,53 @@ export function ServicesManager({
                       + Malzeme
                     </button>
                   </div>
-                  {form.recipe.map((row, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Select
-                        value={row.ingredientId}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            recipe: f.recipe.map((r, i) =>
-                              i === index ? { ...r, ingredientId: e.target.value } : r
-                            ),
-                          }))
-                        }
-                        className="flex-1"
+                  {form.recipe.map((row, index) => {
+                    const unit =
+                      ingredients.find((i) => i.id === row.ingredientId)?.unit ?? "";
+                    return (
+                      <div
+                        key={index}
+                        className="grid grid-cols-[minmax(0,1fr)_4.5rem_2rem] items-center gap-2"
                       >
-                        <option value="">Malzeme</option>
-                        {ingredients.map((i) => (
-                          <option key={i.id} value={i.id}>{i.name}</option>
-                        ))}
-                      </Select>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="any"
-                        value={row.amount || ""}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            recipe: f.recipe.map((r, i) =>
-                              i === index ? { ...r, amount: Number(e.target.value) } : r
-                            ),
-                          }))
-                        }
-                        className="w-24"
-                      />
-                    </div>
-                  ))}
+                        <Select
+                          value={row.ingredientId}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              recipe: f.recipe.map((r, i) =>
+                                i === index ? { ...r, ingredientId: e.target.value } : r
+                              ),
+                            }))
+                          }
+                          className="min-w-0"
+                        >
+                          <option value="">Malzeme seçin</option>
+                          {ingredients.map((i) => (
+                            <option key={i.id} value={i.id}>
+                              {i.name} ({i.unit})
+                            </option>
+                          ))}
+                        </Select>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={row.amount || ""}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              recipe: f.recipe.map((r, i) =>
+                                i === index ? { ...r, amount: Number(e.target.value) } : r
+                              ),
+                            }))
+                          }
+                          placeholder="Adet"
+                          className="w-full px-2 text-center"
+                        />
+                        <span className="truncate text-xs text-cream-dim">{unit}</span>
+                      </div>
+                    );
+                  })}
                   <p className="text-xs text-cream-dim">Birimler: {STOCK_UNITS.join(", ")}</p>
                 </div>
               )}

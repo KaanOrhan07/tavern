@@ -54,7 +54,7 @@ export function SettingsView({
   const [okMessage, setOkMessage] = useState<string | null>(null);
   const [printerStatus, setPrinterStatus] = useState<"idle" | "connected" | "error">("idle");
   const [printerSupported, setPrinterSupported] = useState(true);
-  const [slotMinutes, setSlotMinutes] = useState<30 | 60>(30);
+  const [slotMinutes, setSlotMinutes] = useState("30");
   const [openTime, setOpenTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("20:00");
   const [savingBarber, setSavingBarber] = useState(false);
@@ -69,7 +69,7 @@ export function SettingsView({
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data?.settings) return;
-        setSlotMinutes(data.settings.slotMinutes);
+        setSlotMinutes(String(data.settings.slotMinutes));
         setOpenTime(data.settings.openTime);
         setCloseTime(data.settings.closeTime);
       });
@@ -79,10 +79,16 @@ export function SettingsView({
     e.preventDefault();
     setSavingBarber(true);
     setError(null);
+    const minutes = Number.parseInt(slotMinutes, 10);
+    if (!Number.isFinite(minutes) || minutes < 5 || minutes > 180) {
+      setError("Slot süresi 5–180 dakika arasında olmalı");
+      setSavingBarber(false);
+      return;
+    }
     const res = await fetch("/api/panel/barber-settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slotMinutes, openTime, closeTime }),
+      body: JSON.stringify({ slotMinutes: minutes, openTime, closeTime }),
     });
     if (!res.ok) setError("Randevu ayarları kaydedilemedi");
     else setOkMessage("Randevu ayarları güncellendi");
@@ -478,15 +484,18 @@ export function SettingsView({
           </p>
           <form onSubmit={saveBarberSettings} className="grid gap-3 sm:grid-cols-3">
             <div>
-              <Label>Slot süresi</Label>
-              <select
+              <Label>Slot süresi (dk)</Label>
+              <Input
+                type="number"
+                min={5}
+                max={180}
+                step={5}
                 value={slotMinutes}
-                onChange={(e) => setSlotMinutes(Number(e.target.value) as 30 | 60)}
-                className="mt-1 w-full rounded-lg border border-ink-line bg-ink px-3 py-2 text-sm"
-              >
-                <option value={30}>30 dakika</option>
-                <option value={60}>60 dakika</option>
-              </select>
+                onChange={(e) => setSlotMinutes(e.target.value)}
+                placeholder="ör: 15, 30, 45"
+                required
+              />
+              <p className="mt-1 text-[11px] text-cream-dim">5–180 dk (ör. 15, 20, 45)</p>
             </div>
             <div>
               <Label>Açılış</Label>

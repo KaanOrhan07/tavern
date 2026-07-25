@@ -1,4 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import {
+  DEFAULT_BUSINESS_TZ,
+  addDaysYmd,
+  formatDateInTz,
+  minutesToHm,
+  zonedLocalToUtc,
+} from "@/lib/business-timezone";
 
 export type BarberSettingsData = {
   slotMinutes: number;
@@ -9,18 +16,6 @@ export type BarberSettingsData = {
 function parseHm(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
-}
-
-function atLocalMinutes(date: Date, minutes: number): Date {
-  const d = new Date(date);
-  d.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-  return d;
-}
-
-function startOfLocalDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
 }
 
 export async function getBarberSettings(businessId: string): Promise<BarberSettingsData> {
@@ -44,8 +39,8 @@ export async function archivePastAppointments(businessId: string) {
   });
 
   const toComplete = booked.filter((a) => {
-    const dayStart = startOfLocalDay(a.startAt);
-    const archiveAfter = atLocalMinutes(dayStart, closeMin + 120);
+    const dateYmd = formatDateInTz(a.startAt, DEFAULT_BUSINESS_TZ);
+    const archiveAfter = zonedLocalToUtc(dateYmd, minutesToHm(closeMin + 120));
     return now >= archiveAfter;
   });
 
@@ -57,12 +52,12 @@ export async function archivePastAppointments(businessId: string) {
   });
 }
 
-function generateSlotStarts(day: Date, settings: BarberSettingsData): Date[] {
+function generateSlotStarts(dateYmd: string, settings: BarberSettingsData): Date[] {
   const open = parseHm(settings.openTime);
   const close = parseHm(settings.closeTime);
   const slots: Date[] = [];
   for (let m = open; m < close; m += settings.slotMinutes) {
-    slots.push(atLocalMinutes(day, m));
+    slots.push(zonedLocalToUtc(dateYmd, minutesToHm(m)));
   }
   return slots;
 }
@@ -71,13 +66,22 @@ function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
   return aStart < bEnd && bStart < aEnd;
 }
 
+export type AvailableSlot = {
+  startAt: string;
+  endAt: string;
+  label: string;
+};
+
 export async function getAvailableSlots(params: {
   businessId: string;
   serviceId: string;
   staffId: string;
-  date: string; // YYYY-MM-DD
-}) {
+  date: string; // YYYY-MM-DD (işletme takvim günü)
+}): Promise<AvailableSlot[]> {
   await archivePastAppointments(params.businessId);
+
+  const dayStart = zonedLocalToUtc(params.date, "00:00");
+  const dayEnd = zonedLocalToUtc(addDaysYmd(params.date, 1), "00:00");
 
   const [settings, service, existing] = await Promise.all([
     getBarberSettings(params.businessId),
@@ -89,31 +93,34 @@ export async function getAvailableSlots(params: {
         businessId: params.businessId,
         staffId: params.staffId,
         status: "BOOKED",
-        startAt: {
-          gte: new Date(`${params.date}T00:00:00`),
-          lt: new Date(`${params.date}T23:59:59.999`),
-        },
+        startAt: { gte: dayStart, lt: dayEnd },
       },
     }),
   ]);
 
   if (!service) return [];
 
-  const day = new Date(`${params.date}T12:00:00`);
-  const slotStarts = generateSlotStarts(day, settings);
-  const neededSlots = Math.ceil(service.durationMinutes / settings.slotMinutes);
+  const openMin = parseHm(settings.openTime);
   const closeMin = parseHm(settings.closeTime);
-  const available: { startAt: string; endAt: string }[] = [];
+  const slotStarts = generateSlotStarts(params.date, settings);
+  const neededSlots = Math.ceil(service.durationMinutes / settings.slotMinutes);
+  const available: AvailableSlot[] = [];
+  const now = new Date();
 
   for (let i = 0; i <= slotStarts.length - neededSlots; i++) {
     const startAt = slotStarts[i]!;
-    const endAt = new Date(startAt.getTime() + service.durationMinutes * 60_000);
-    const endMin = startAt.getHours() * 60 + startAt.getMinutes() + service.durationMinutes;
+    const startMin = openMin + i * settings.slotMinutes;
+    const endMin = startMin + service.durationMinutes;
     if (endMin > closeMin) continue;
 
+    const endAt = new Date(startAt.getTime() + service.durationMinutes * 60_000);
     const conflict = existing.some((a) => overlaps(startAt, endAt, a.startAt, a.endAt));
-    if (!conflict && startAt > new Date()) {
-      available.push({ startAt: startAt.toISOString(), endAt: endAt.toISOString() });
+    if (!conflict && startAt > now) {
+      available.push({
+        startAt: startAt.toISOString(),
+        endAt: endAt.toISOString(),
+        label: minutesToHm(startMin),
+      });
     }
   }
 

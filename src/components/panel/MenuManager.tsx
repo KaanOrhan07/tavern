@@ -441,11 +441,14 @@ export function MenuManager({
                     {form.recipe.map((row, index) => {
                       const unit = ingredients.find((i) => i.id === row.ingredientId)?.unit ?? "";
                       return (
-                        <div key={index} className="flex items-center gap-2">
+                        <div
+                          key={index}
+                          className="grid grid-cols-[minmax(0,1fr)_4.5rem_2rem_2.75rem] items-center gap-2"
+                        >
                           <Select
                             value={row.ingredientId}
                             onChange={(e) => updateRecipeRow(index, { ingredientId: e.target.value })}
-                            className="flex-1"
+                            className="min-w-0"
                             required
                           >
                             <option value="">Malzeme seçin</option>
@@ -459,11 +462,11 @@ export function MenuManager({
                             min={0}
                             value={row.amount || ""}
                             onChange={(e) => updateRecipeRow(index, { amount: Number(e.target.value) })}
-                            placeholder="Miktar"
-                            className="w-28"
+                            placeholder="Adet"
+                            className="w-full px-2 text-center"
                             required
                           />
-                          <span className="w-10 text-xs text-cream-dim">{unit}</span>
+                          <span className="truncate text-xs text-cream-dim">{unit}</span>
                           <button
                             type="button"
                             aria-label="Satırı sil"
