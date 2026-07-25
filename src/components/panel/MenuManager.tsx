@@ -26,7 +26,16 @@ type Product = {
   recipe: RecipeRow[];
   variants: { name: string; priceKurus: number }[];
 };
-type Category = { id: string; name: string; sortOrder: number; products: Product[] };
+type Category = {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  icon: string | null;
+  active: boolean;
+  sortOrder: number;
+  products: Product[];
+};
 
 const EMPTY_FORM = {
   id: null as string | null,
@@ -57,6 +66,13 @@ export function MenuManager({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [categoryDraft, setCategoryDraft] = useState({
+    description: "",
+    imageUrl: "",
+    icon: "",
+    active: true,
+  });
   const [showProductForm, setShowProductForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -95,6 +111,41 @@ export function MenuManager({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "reorder", direction }),
     });
+    router.refresh();
+  }
+
+  function openCategoryEdit(category: Category) {
+    setEditingCategoryId(category.id);
+    setCategoryDraft({
+      description: category.description ?? "",
+      imageUrl: category.imageUrl ?? "",
+      icon: category.icon ?? "",
+      active: category.active,
+    });
+    setError(null);
+  }
+
+  async function saveCategoryEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingCategoryId) return;
+    setError(null);
+    const res = await fetch(`/api/panel/categories/${editingCategoryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "update",
+        description: categoryDraft.description.trim() || null,
+        imageUrl: categoryDraft.imageUrl.trim() || null,
+        icon: categoryDraft.icon.trim() || null,
+        active: categoryDraft.active,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setError(data?.error ?? "Kategori güncellenemedi");
+      return;
+    }
+    setEditingCategoryId(null);
     router.refresh();
   }
 
@@ -277,6 +328,7 @@ export function MenuManager({
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <h2 className="font-medium">{category.name}</h2>
+                {!category.active && <Badge>Pasif</Badge>}
                 <div className="flex gap-1">
                   <button
                     type="button"
@@ -299,6 +351,17 @@ export function MenuManager({
                 </div>
               </div>
               <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  className="min-h-11"
+                  onClick={() =>
+                    editingCategoryId === category.id
+                      ? setEditingCategoryId(null)
+                      : openCategoryEdit(category)
+                  }
+                >
+                  {editingCategoryId === category.id ? "Kapat" : "Görsel"}
+                </Button>
                 <Button variant="secondary" className="min-h-11" onClick={() => openCreate(category.id)}>
                   + Ürün
                 </Button>
@@ -309,6 +372,60 @@ export function MenuManager({
                 )}
               </div>
             </div>
+
+            {editingCategoryId === category.id && (
+              <form
+                onSubmit={saveCategoryEdit}
+                className="mb-4 grid gap-3 rounded-xl border border-ink-line bg-ink-soft p-3 sm:grid-cols-2"
+              >
+                <div className="sm:col-span-2">
+                  <Label>Açıklama</Label>
+                  <Textarea
+                    value={categoryDraft.description}
+                    onChange={(e) =>
+                      setCategoryDraft({ ...categoryDraft, description: e.target.value })
+                    }
+                    rows={2}
+                    placeholder="İsteğe bağlı kategori açıklaması"
+                  />
+                </div>
+                <div>
+                  <Label>Görsel URL</Label>
+                  <Input
+                    value={categoryDraft.imageUrl}
+                    onChange={(e) =>
+                      setCategoryDraft({ ...categoryDraft, imageUrl: e.target.value })
+                    }
+                    placeholder="https://… veya /api/public/media/…"
+                  />
+                </div>
+                <div>
+                  <Label>İkon</Label>
+                  <Input
+                    value={categoryDraft.icon}
+                    onChange={(e) =>
+                      setCategoryDraft({ ...categoryDraft, icon: e.target.value })
+                    }
+                    placeholder="ör: ✦ (görsel yoksa)"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={categoryDraft.active}
+                    onChange={(e) =>
+                      setCategoryDraft({ ...categoryDraft, active: e.target.checked })
+                    }
+                  />
+                  Aktif (QR menüde göster)
+                </label>
+                <div className="sm:col-span-2">
+                  <Button type="submit" className="min-h-11">
+                    Kaydet
+                  </Button>
+                </div>
+              </form>
+            )}
 
             {category.products.length === 0 ? (
               <p className="text-sm text-cream-dim">Bu kategoride ürün yok.</p>

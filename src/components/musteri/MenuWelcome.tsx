@@ -1,12 +1,59 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { toDisplayImageUrl } from "@/lib/storage-url";
 
-type Category = { id: string; name: string; products: unknown[] };
+type Category = {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
+  icon?: string | null;
+  products: unknown[];
+};
 
 const CATEGORY_GLYPHS = ["◎", "◇", "✦", "◈", "○", "△", "□", "✧"];
+
+function CategoryTileVisual({
+  category,
+  index,
+}: {
+  category: Category;
+  index: number;
+}) {
+  const resolved = category.imageUrl ? toDisplayImageUrl(category.imageUrl) : null;
+  const [failed, setFailed] = useState(false);
+
+  if (resolved && !failed) {
+    return (
+      <span className="relative mb-0.5 h-10 w-10 overflow-hidden rounded-xl ring-1 ring-gold/30">
+        <Image
+          src={resolved}
+          alt=""
+          fill
+          className="object-cover"
+          sizes="40px"
+          unoptimized={resolved.startsWith("/api/")}
+          onError={() => setFailed(true)}
+        />
+      </span>
+    );
+  }
+
+  if (category.icon) {
+    return (
+      <span className="text-lg text-gold" aria-hidden>
+        {category.icon}
+      </span>
+    );
+  }
+
+  return (
+    <span className="text-lg text-gold" aria-hidden>
+      {CATEGORY_GLYPHS[index % CATEGORY_GLYPHS.length]}
+    </span>
+  );
+}
 
 export function MenuWelcome({
   businessName,
@@ -87,9 +134,7 @@ export function MenuWelcome({
               onClick={() => onSelectCategory(category.id)}
               className="flex min-h-[4.75rem] flex-col items-center justify-center gap-1.5 rounded-2xl border border-gold/25 bg-ink/55 px-2.5 py-3 text-center backdrop-blur-md transition-colors active:bg-ink/70 cursor-pointer"
             >
-              <span className="text-lg text-gold" aria-hidden>
-                {CATEGORY_GLYPHS[index % CATEGORY_GLYPHS.length]}
-              </span>
+              <CategoryTileVisual category={category} index={index} />
               <span className="text-sm font-medium leading-snug">{category.name}</span>
             </button>
           ))}

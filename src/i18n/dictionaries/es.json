@@ -1,0 +1,21 @@
+{
+  "navigation": {
+    "dashboard": "Panel",
+    "orders": "Pedidos",
+    "products": "Productos",
+    "categories": "Categorías",
+    "settings": "Ajustes",
+    "theme": "Tema",
+    "campaigns": "Campañas",
+    "customers": "Clientes",
+    "reports": "Informes"
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "loading": "Cargando...",
+    "search": "Buscar"
+  }
+}

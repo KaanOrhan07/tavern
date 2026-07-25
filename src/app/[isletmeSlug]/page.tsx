@@ -23,7 +23,10 @@ export default async function BusinessLandingPage({
     redirect(defaultCustomerPath(isletmeSlug, business.type.key));
   }
 
-  const menuData = await loadPublicMenuData(business.id);
+  const [menuData, localeSettings] = await Promise.all([
+    loadPublicMenuData(business.id),
+    prisma.businessLocaleSettings.findUnique({ where: { businessId: business.id } }),
+  ]);
 
   return (
     <CustomerMenuApp
@@ -38,6 +41,8 @@ export default async function BusinessLandingPage({
       suggestionEnabled={menuData.suggestionEnabled}
       loyaltyEnabled={menuData.loyaltyEnabled}
       startOnWelcome
+      defaultLocale={localeSettings?.defaultLocale ?? "TR"}
+      enabledLocales={localeSettings?.enabledLocales ?? ["TR", "EN"]}
     />
   );
 }

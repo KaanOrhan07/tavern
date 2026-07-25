@@ -28,6 +28,15 @@ enum Theme {
   DARK // Koyu tema
 }
 
+enum Locale {
+  TR
+  EN
+  ES
+  DE
+  RU
+  AR
+}
+
 model Business {
   id        String    @id @default(cuid())
   slug      String    @unique
@@ -55,11 +64,26 @@ model Business {
   notifications Notification[]
   loyaltyConfig  LoyaltyConfig?
   loyaltyAccounts LoyaltyAccount[]
+  auditLogs       AuditLog[]
+  idempotencyKeys IdempotencyKey[]
+  stockMovements  StockMovement[]
+  themeSettings   ThemeSettings?
+  localeSettings  BusinessLocaleSettings?
+  campaigns       Campaign[]
+  customers       Customer[]
+  floorAreas      FloorArea[]
+  expenses        Expense[]
+  menuAnalyses    MenuAnalysis[]
+  menuEvents      MenuEvent[]
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   // Berber / kuaför modülü
   barberSettings BarberSettings?
   services       Service[]
   appointments   Appointment[]
+
+  @@index([organizationId])
 }
 
 // Özellik bayrakları — admin panelden işletme başına açılıp kapanır
@@ -79,50 +103,90 @@ enum UserRole {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  businessId   String
-  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  role         UserRole
-  name         String
-  email        String?  @unique // sadece OWNER için
-  passwordHash String? // sadece OWNER için
-  pin          String? // sadece STAFF için (4-6 hane, işletme içinde benzersiz)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  businessId     String
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  role           UserRole
+  name           String
+  email          String?  @unique // sadece OWNER için
+  passwordHash   String? // sadece OWNER için
+  pin            String? // DEPRECATED: düz metin PIN — migration sonrası kaldırılacak
+  pinHash        String? // bcrypt hash (STAFF)
+  pinFingerprint String? // HMAC ile işletme içi benzersizlik
+  active         Boolean  @default(true)
+  sessionVersion Int      @default(1)
+  locale         Locale   @default(TR)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  createdOrders  Order[]        @relation("OrderCreatedBy")
-  staffRequests  StaffRequest[]
-  appointments   Appointment[]  @relation("StaffAppointments")
+  createdOrders         Order[]              @relation("OrderCreatedBy")
+  staffRequests         StaffRequest[]
+  appointments          Appointment[]        @relation("StaffAppointments")
+  passwordResetTokens   PasswordResetToken[]
+  stockMovements        StockMovement[]
+  organizationMemberships OrganizationMembership[]
 
-  @@unique([businessId, pin])
+  @@unique([businessId, pinFingerprint])
+  @@index([businessId, role, active])
 }
 
 // ============ RESTORAN/KAFE MODÜLÜ ============
 
 model Table {
-  id         String   @id @default(cuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  name       String // ör: "Masa 1", "Bahçe 3"
-  qrToken    String   @unique @default(uuid()) // QR URL'inde kullanılır
-  createdAt  DateTime @default(now())
+  id          String     @id @default(cuid())
+  businessId  String
+  business    Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name        String // ör: "Masa 1", "Bahçe 3"
+  qrToken     String     @unique @default(uuid()) // QR URL'inde kullanılır
+  floorAreaId String?
+  floorArea   FloorArea? @relation(fields: [floorAreaId], references: [id], onDelete: SetNull)
+  capacity    Int        @default(4)
+  shape       String     @default("square")
+  posX        Int        @default(0)
+  posY        Int        @default(0)
+  width       Int        @default(100)
+  height      Int        @default(100)
+  rotation    Int        @default(0)
+  createdAt   DateTime   @default(now())
 
   orders Order[]
 
   @@unique([businessId, name])
+  @@index([floorAreaId])
 }
 
 model Category {
-  id         String   @id @default(cuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  name       String
-  sortOrder  Int      @default(0)
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String
+  description String?
+  imageUrl    String?
+  icon        String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
 
-  products Product[]
+  products           Product[]
+  translations       CategoryTranslation[]
+  targetedCampaigns  Campaign[]
 
   @@unique([businessId, name])
+  @@unique([businessId, slug])
+}
+
+model CategoryTranslation {
+  id          String   @id @default(cuid())
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  locale      Locale
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([categoryId, locale])
 }
 
 model Product {
@@ -149,11 +213,26 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  recipeItems RecipeItem[]
-  orderItems  OrderItem[]
-  variants    ProductVariant[]
+  recipeItems  RecipeItem[]
+  orderItems   OrderItem[]
+  variants           ProductVariant[]
+  translations       ProductTranslation[]
+  targetedCampaigns  Campaign[]
 
   @@unique([businessId, slug])
+}
+
+model ProductTranslation {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  locale      Locale
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([productId, locale])
 }
 
 model ProductVariant {
@@ -165,9 +244,22 @@ model ProductVariant {
   sortOrder  Int      @default(0)
   active     Boolean  @default(true)
 
-  orderItems OrderItem[]
+  orderItems   OrderItem[]
+  translations ProductVariantTranslation[]
 
   @@unique([productId, name])
+}
+
+model ProductVariantTranslation {
+  id        String         @id @default(cuid())
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  locale    Locale
+  name      String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([variantId, locale])
 }
 
 model Ingredient {
@@ -231,23 +323,37 @@ model Order {
   @@index([businessId, createdAt])
 }
 
+enum OrderItemStatus {
+  PENDING
+  PREPARING
+  READY
+  DELIVERED
+  CANCELLED
+}
+
 model OrderItem {
-  id           String   @id @default(cuid())
+  id           String          @id @default(cuid())
   orderId      String
-  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order        Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId    String?
-  product      Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  product      Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
   variantId    String?
   variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   productName  String // sipariş anındaki ad (snapshot, varyant adı dahil)
   unitKurus    Int // sipariş anındaki birim fiyat (snapshot)
   quantity     Int
   note         String? // müşteri notu (ör. "şekersiz olsun")
-  paidQuantity Int      @default(0) // kısmi ödeme: kaç adedi ödendi
-  prepared     Boolean  @default(false) // mutfak/adisyon: hazırlandı
+  paidQuantity Int             @default(0) // kısmi ödeme: kaç adedi ödendi
+  prepared     Boolean         @default(false) // DEPRECATED: status kullan
   preparedAt   DateTime?
-  delivered    Boolean  @default(false) // garson: müşteriye teslim edildi
-  createdAt    DateTime @default(now())
+  delivered    Boolean         @default(false) // DEPRECATED: status kullan
+  status       OrderItemStatus @default(PENDING)
+  preparingAt  DateTime?
+  readyAt      DateTime?
+  deliveredAt  DateTime?
+  createdAt    DateTime        @default(now())
+
+  @@index([orderId, status])
 }
 
 enum PaymentMethod {
@@ -285,6 +391,56 @@ model StaffRequest {
   resolvedAt  DateTime?
 
   @@index([businessId, status])
+}
+
+enum CampaignDisplayType {
+  BANNER
+  POPUP
+}
+
+enum CampaignTargetType {
+  NONE
+  PRODUCT
+  CATEGORY
+}
+
+model Campaign {
+  id               String               @id @default(cuid())
+  businessId       String
+  business         Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  active           Boolean              @default(true)
+  displayType      CampaignDisplayType
+  targetType       CampaignTargetType   @default(NONE)
+  targetProductId  String?
+  targetProduct    Product?             @relation(fields: [targetProductId], references: [id], onDelete: SetNull)
+  targetCategoryId String?
+  targetCategory   Category?            @relation(fields: [targetCategoryId], references: [id], onDelete: SetNull)
+  imageUrl         String?
+  startsAt         DateTime
+  endsAt           DateTime
+  displayFrequency String               @default("once_per_session")
+  daysOfWeek       Int[]                @default([])
+  startTime        String?
+  endTime          String?
+  sortOrder        Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  translations CampaignTranslation[]
+
+  @@index([businessId, active, startsAt, endsAt])
+}
+
+model CampaignTranslation {
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  locale      Locale
+  title       String
+  description String?
+  buttonText  String?
+
+  @@unique([campaignId, locale])
 }
 
 enum NotificationType {
@@ -392,4 +548,296 @@ model Appointment {
 
   @@index([businessId, startAt])
   @@index([staffId, startAt, status])
+}
+
+// ============ GÜVENLİK / ALTYAPI (2.0) ============
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  CANCEL
+  PAYMENT
+  STOCK_ADJUSTMENT
+  SETTINGS_CHANGE
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  businessId String?
+  business   Business?   @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  userId     String?
+  userName   String?
+  userRole   String?
+  action     AuditAction
+  entityType String
+  entityId   String?
+  beforeData Json?
+  afterData  Json?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  requestId  String?
+  createdAt  DateTime    @default(now())
+
+  @@index([businessId, createdAt])
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
+}
+
+model IdempotencyKey {
+  id           String   @id @default(cuid())
+  businessId   String
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  key          String
+  endpoint     String
+  responseCode Int?
+  responseBody Json?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@unique([businessId, key, endpoint])
+  @@index([expiresAt])
+}
+
+enum StockMovementType {
+  PURCHASE
+  ORDER_CONSUMPTION
+  ORDER_CANCEL_RETURN
+  MANUAL_ADJUSTMENT
+  INITIAL_BALANCE
+}
+
+model StockMovement {
+  id           String            @id @default(cuid())
+  businessId   String
+  business     Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  ingredientId String
+  type         StockMovementType
+  amount       Float
+  beforeAmount Float
+  afterAmount  Float
+  orderId      String?
+  userId       String?
+  user         User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  note         String?
+  createdAt    DateTime          @default(now())
+
+  @@index([businessId, createdAt])
+  @@index([ingredientId, createdAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  SUPPORT
+  SALES
+  FINANCE
+}
+
+model AdminUser {
+  id              String    @id @default(cuid())
+  name            String
+  email           String    @unique
+  passwordHash    String
+  role            AdminRole @default(SUPER_ADMIN)
+  active          Boolean   @default(true)
+  sessionVersion  Int       @default(1)
+  twoFactorSecret String?
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model ThemeSettings {
+  id                String   @id @default(cuid())
+  businessId        String   @unique
+  business          Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  presetKey         String   @default("modern-dark")
+
+  primaryColor      String   @default("#D4A857")
+  secondaryColor    String   @default("#141311")
+  accentColor       String   @default("#E8C88A")
+  backgroundColor   String   @default("#0A0A0A")
+  surfaceColor      String   @default("#1B1916")
+  textColor         String   @default("#F5EFE0")
+  mutedTextColor    String   @default("#B8B0A0")
+  borderColor       String   @default("#2B2823")
+
+  headingFont       String   @default("Cormorant Garamond")
+  bodyFont          String   @default("DM Sans")
+
+  cardRadius        Int      @default(18)
+  buttonRadius      Int      @default(14)
+  cardStyle         String   @default("solid")
+  categoryCardStyle String   @default("image-overlay")
+  productCardStyle  String   @default("horizontal")
+  headerStyle       String   @default("centered")
+
+  animationLevel    String   @default("normal")
+  introAnimation    String   @default("fade")
+
+  customCssVariables Json?
+  themeVersion      Int      @default(1)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model BusinessLocaleSettings {
+  id             String   @id @default(cuid())
+  businessId     String   @unique
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  defaultLocale  Locale   @default(TR)
+  enabledLocales Locale[] @default([TR])
+  autoDetect     Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Customer {
+  id              String    @id @default(cuid())
+  businessId      String
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  phone           String
+  name            String?
+  birthDate       DateTime?
+  preferredLocale Locale?
+  totalSpendKurus Int       @default(0)
+  orderCount      Int       @default(0)
+  lastOrderAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([businessId, phone])
+  @@index([businessId, lastOrderAt])
+}
+
+model FloorArea {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name       String
+  width      Int      @default(1000)
+  height     Int      @default(700)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tables Table[]
+
+  @@unique([businessId, name])
+}
+
+enum ExpenseCategory {
+  RENT
+  SALARY
+  SUPPLIER
+  UTILITIES
+  TAX
+  MAINTENANCE
+  MARKETING
+  OTHER
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  businessId  String
+  business    Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category    ExpenseCategory
+  title       String
+  amountKurus Int
+  expenseDate DateTime
+  note        String?
+  documentUrl String?
+  createdById String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([businessId, expenseDate])
+}
+
+enum AnalysisStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model MenuAnalysis {
+  id          String         @id @default(cuid())
+  businessId  String
+  business    Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  periodStart DateTime
+  periodEnd   DateTime
+  inputData   Json
+  resultData  Json?
+  status      AnalysisStatus @default(PENDING)
+  model       String?
+  errorCode   String?
+  createdAt   DateTime       @default(now())
+  completedAt DateTime?
+
+  @@index([businessId, createdAt])
+}
+
+enum MenuEventType {
+  MENU_VIEW
+  CATEGORY_VIEW
+  PRODUCT_VIEW
+  ADD_TO_CART
+  REMOVE_FROM_CART
+  ORDER_SUBMITTED
+}
+
+model MenuEvent {
+  id         String        @id @default(cuid())
+  businessId String
+  business   Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  tableId    String?
+  sessionId  String
+  type       MenuEventType
+  categoryId String?
+  productId  String?
+  metadata   Json?
+  createdAt  DateTime      @default(now())
+
+  @@index([businessId, createdAt])
+  @@index([businessId, productId, type, createdAt])
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  businesses  Business[]
+  memberships OrganizationMembership[]
+}
+
+model OrganizationMembership {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId])
 }

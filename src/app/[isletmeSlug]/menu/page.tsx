@@ -19,9 +19,10 @@ export default async function PublicMenuPage({
   });
   if (!business || !business.active) notFound();
 
-  const [menuData, table] = await Promise.all([
+  const [menuData, table, localeSettings] = await Promise.all([
     loadPublicMenuData(business.id),
     masa ? prisma.table.findUnique({ where: { qrToken: masa } }) : Promise.resolve(null),
+    prisma.businessLocaleSettings.findUnique({ where: { businessId: business.id } }),
   ]);
 
   const canOrder =
@@ -41,6 +42,8 @@ export default async function PublicMenuPage({
       suggestionEnabled={menuData.suggestionEnabled}
       loyaltyEnabled={menuData.loyaltyEnabled}
       startOnWelcome
+      defaultLocale={localeSettings?.defaultLocale ?? "TR"}
+      enabledLocales={localeSettings?.enabledLocales ?? ["TR", "EN"]}
     />
   );
 }

@@ -2,11 +2,35 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
+import { slugify } from "@/lib/utils";
 
 const patchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("rename"), name: z.string().min(1).max(60) }),
   z.object({ action: z.literal("reorder"), direction: z.enum(["up", "down"]) }),
+  z.object({
+    action: z.literal("update"),
+    description: z.string().max(500).optional().nullable(),
+    imageUrl: z.string().max(2000).optional().nullable(),
+    icon: z.string().max(40).optional().nullable(),
+    active: z.boolean().optional(),
+  }),
 ]);
+
+async function uniqueCategorySlug(
+  businessId: string,
+  name: string,
+  excludeId: string
+): Promise<string> {
+  const base = slugify(name) || "kategori";
+  let slug = base;
+  for (let i = 2; ; i++) {
+    const existing = await prisma.category.findUnique({
+      where: { businessId_slug: { businessId, slug } },
+    });
+    if (!existing || existing.id === excludeId) return slug;
+    slug = `${base}-${i}`;
+  }
+}
 
 export async function PATCH(
   request: Request,
@@ -22,10 +46,51 @@ export async function PATCH(
   }
 
   if (body.data.action === "rename") {
-    await prisma.category.updateMany({
+    const name = body.data.name.trim();
+    const slug = await uniqueCategorySlug(ctx.business.id, name, id);
+    try {
+      const result = await prisma.category.updateMany({
+        where: { id, businessId: ctx.business.id },
+        data: { name, slug },
+      });
+      if (result.count === 0) {
+        return NextResponse.json({ error: "Kategori bulunamadı" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: true });
+    } catch {
+      return NextResponse.json(
+        { error: "Bu isimde bir kategori zaten var" },
+        { status: 409 }
+      );
+    }
+  }
+
+  if (body.data.action === "update") {
+    const data: {
+      description?: string | null;
+      imageUrl?: string | null;
+      icon?: string | null;
+      active?: boolean;
+    } = {};
+    if ("description" in body.data) {
+      data.description = body.data.description?.trim() || null;
+    }
+    if ("imageUrl" in body.data) {
+      data.imageUrl = body.data.imageUrl?.trim() || null;
+    }
+    if ("icon" in body.data) {
+      data.icon = body.data.icon?.trim() || null;
+    }
+    if (typeof body.data.active === "boolean") {
+      data.active = body.data.active;
+    }
+    const result = await prisma.category.updateMany({
       where: { id, businessId: ctx.business.id },
-      data: { name: body.data.name.trim() },
+      data,
     });
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Kategori bulunamadı" }, { status: 404 });
+    }
     return NextResponse.json({ ok: true });
   }
 

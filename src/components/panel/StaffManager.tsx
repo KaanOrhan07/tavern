@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, EmptyState, Input, Label } from "@/components/ui";
 
-type Staff = { id: string; name: string; pin: string; active: boolean };
+type Staff = { id: string; name: string; hasPin: boolean; active: boolean };
 
 export function StaffManager({ staff }: { staff: Staff[] }) {
   const router = useRouter();
@@ -31,8 +31,8 @@ export function StaffManager({ staff }: { staff: Staff[] }) {
   }
 
   async function savePin(id: string) {
-    if (!/^\d{4,6}$/.test(editPin)) {
-      setError("PIN 4-6 haneli rakam olmalı");
+    if (!/^\d{4,8}$/.test(editPin)) {
+      setError("PIN 4-8 haneli rakam olmalı");
       return;
     }
     const res = await fetch(`/api/panel/staff/${id}`, {
@@ -71,7 +71,7 @@ export function StaffManager({ staff }: { staff: Staff[] }) {
       <div>
         <h1 className="text-xl font-semibold">Personeller</h1>
         <p className="mt-1 text-sm text-cream-dim">
-          Garsonlar bu PIN ile panele giriş yapar.
+          Garsonlar bu PIN ile panele giriş yapar. PIN’ler şifreli saklanır.
         </p>
       </div>
 
@@ -95,19 +95,19 @@ export function StaffManager({ staff }: { staff: Staff[] }) {
             />
           </div>
           <div className="w-40">
-            <Label>PIN (4-6 hane)</Label>
+            <Label>PIN (4-8 hane)</Label>
             <Input
               type="password"
               inputMode="numeric"
               autoComplete="new-password"
-              maxLength={6}
+              maxLength={8}
               value={form.pin}
               onChange={(e) =>
                 setForm({ ...form, pin: e.target.value.replace(/\D/g, "") })
               }
               placeholder="ör: 4821"
               required
-              pattern="\d{4,6}"
+              pattern="\d{4,8}"
               className="text-center tracking-widest"
             />
           </div>
@@ -133,7 +133,7 @@ export function StaffManager({ staff }: { staff: Staff[] }) {
                         type="password"
                         inputMode="numeric"
                         autoComplete="new-password"
-                        maxLength={6}
+                        maxLength={8}
                         value={editPin}
                         onChange={(e) =>
                           setEditPin(e.target.value.replace(/\D/g, ""))
@@ -155,7 +155,7 @@ export function StaffManager({ staff }: { staff: Staff[] }) {
                     </div>
                   ) : (
                     <p className="mt-0.5 text-xs text-cream-dim">
-                      PIN: {"•".repeat(member.pin.length)}
+                      PIN: {member.hasPin ? "••••" : "yok"}
                     </p>
                   )}
                 </div>

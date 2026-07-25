@@ -87,6 +87,14 @@ export default function PanelLoginPage({
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
+                <p className="mt-2 text-end text-xs">
+                  <a
+                    href={`/panel/${isletmeSlug}/sifre-sifirla`}
+                    className="text-gold hover:underline"
+                  >
+                    Şifremi unuttum
+                  </a>
+                </p>
               </div>
             </>
           ) : (
@@ -95,11 +103,11 @@ export default function PanelLoginPage({
               <Input
                 type="password"
                 inputMode="numeric"
-                pattern="\d{4,6}"
-                maxLength={6}
+                pattern="\d{4,8}"
+                maxLength={8}
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-                placeholder="4-6 haneli PIN"
+                placeholder="4-8 haneli PIN"
                 className="text-center text-lg tracking-[0.5em]"
                 required
               />

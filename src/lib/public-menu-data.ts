@@ -28,6 +28,10 @@ export type PublicMenuProduct = {
 export type PublicMenuCategory = {
   id: string;
   name: string;
+  slug: string;
+  description: string | null;
+  imageUrl: string | null;
+  icon: string | null;
   products: PublicMenuProduct[];
 };
 
@@ -43,7 +47,7 @@ export async function loadPublicMenuData(businessId: string): Promise<PublicMenu
   const [categories, suggestionEnabled, stockEnabled, bestsellersEnabled, variantsEnabled, loyaltyEnabled] =
     await Promise.all([
       prisma.category.findMany({
-        where: { businessId },
+        where: { businessId, active: true },
         orderBy: { sortOrder: "asc" },
         include: {
           products: {
@@ -95,6 +99,10 @@ export async function loadPublicMenuData(businessId: string): Promise<PublicMenu
     .map((c) => ({
       id: c.id,
       name: c.name,
+      slug: c.slug,
+      description: c.description,
+      imageUrl: c.imageUrl ? toDisplayImageUrl(c.imageUrl) : null,
+      icon: c.icon,
       products: c.products.map(mapProduct),
     }));
 
@@ -107,7 +115,15 @@ export async function loadPublicMenuData(businessId: string): Promise<PublicMenu
     const bestsellerProducts = top.map((p) => mapProduct(p));
     if (bestsellerProducts.length > 0) {
       menuCategories = [
-        { id: "__bestsellers", name: "Çok Satanlar", products: bestsellerProducts },
+        {
+          id: "__bestsellers",
+          name: "Çok Satanlar",
+          slug: "cok-satanlar",
+          description: null,
+          imageUrl: null,
+          icon: null,
+          products: bestsellerProducts,
+        },
         ...visibleCategories,
       ];
     }

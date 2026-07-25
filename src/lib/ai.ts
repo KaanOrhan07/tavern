@@ -29,6 +29,10 @@ function shouldTryNextModel(status: number, body: string): boolean {
 }
 
 /** Groq'tan (OpenAI uyumlu Chat Completions API) salt JSON yanıt alır ve parse eder. */
+export async function askGroqJson<T>(system: string, user: string): Promise<T> {
+  return askJson<T>(system, user);
+}
+
 async function askJson<T>(system: string, user: string): Promise<T> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY tanımlı değil");

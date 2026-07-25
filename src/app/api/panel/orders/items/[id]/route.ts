@@ -3,17 +3,25 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
 import { removeOrderItem } from "@/lib/orders";
+import type { OrderItemStatus, Prisma } from "@/generated/prisma/client";
 
 const patchSchema = z
   .object({
     delivered: z.boolean().optional(),
     prepared: z.boolean().optional(),
+    status: z
+      .enum(["PENDING", "PREPARING", "READY", "DELIVERED", "CANCELLED"])
+      .optional(),
   })
-  .refine((d) => d.delivered !== undefined || d.prepared !== undefined, {
-    message: "delivered veya prepared gerekli",
-  });
+  .refine(
+    (d) =>
+      d.delivered !== undefined ||
+      d.prepared !== undefined ||
+      d.status !== undefined,
+    { message: "delivered, prepared veya status gerekli" }
+  );
 
-// Teslim / hazırlandı işaretleme (birbirinden bağımsız)
+// Teslim / hazırlandı işaretleme (boolean + status dual-write)
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -27,11 +35,48 @@ export async function PATCH(
     return NextResponse.json({ error: "Geçersiz istek" }, { status: 400 });
   }
 
-  const data: { delivered?: boolean; prepared?: boolean; preparedAt?: Date | null } = {};
-  if (body.data.delivered !== undefined) data.delivered = body.data.delivered;
+  const data: Prisma.OrderItemUpdateManyMutationInput = {};
+  const now = new Date();
+
+  if (body.data.status !== undefined) {
+    const status = body.data.status as OrderItemStatus;
+    data.status = status;
+    if (status === "PREPARING") data.preparingAt = now;
+    if (status === "READY") {
+      data.prepared = true;
+      data.preparedAt = now;
+      data.readyAt = now;
+    }
+    if (status === "DELIVERED") {
+      data.delivered = true;
+      data.deliveredAt = now;
+      data.prepared = true;
+      data.preparedAt = data.preparedAt ?? now;
+      data.readyAt = data.readyAt ?? now;
+    }
+    if (status === "PENDING") {
+      data.prepared = false;
+      data.preparedAt = null;
+      data.delivered = false;
+      data.deliveredAt = null;
+    }
+  }
+
+  if (body.data.delivered !== undefined) {
+    data.delivered = body.data.delivered;
+    data.deliveredAt = body.data.delivered ? now : null;
+    if (body.data.delivered) data.status = "DELIVERED";
+  }
   if (body.data.prepared !== undefined) {
     data.prepared = body.data.prepared;
-    data.preparedAt = body.data.prepared ? new Date() : null;
+    data.preparedAt = body.data.prepared ? now : null;
+    if (body.data.prepared) {
+      data.status = "READY";
+      data.readyAt = now;
+    } else if (body.data.delivered !== true) {
+      data.status = "PENDING";
+      data.readyAt = null;
+    }
   }
 
   const updated = await prisma.orderItem.updateMany({
@@ -44,7 +89,6 @@ export async function PATCH(
   return NextResponse.json({ ok: true });
 }
 
-// Sipariş kalemi silme (stok iadesiyle birlikte)
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }

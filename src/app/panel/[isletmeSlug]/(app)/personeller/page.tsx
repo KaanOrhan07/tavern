@@ -18,12 +18,17 @@ export default async function StaffPage({
   const staff = await prisma.user.findMany({
     where: { businessId: session.businessId, role: "STAFF" },
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, pin: true, active: true },
+    select: { id: true, name: true, pin: true, pinHash: true, active: true },
   });
 
   return (
     <StaffManager
-      staff={staff.map((s) => ({ ...s, pin: s.pin ?? "" }))}
+      staff={staff.map((s) => ({
+        id: s.id,
+        name: s.name,
+        active: s.active,
+        hasPin: Boolean(s.pinHash || s.pin),
+      }))}
     />
   );
 }

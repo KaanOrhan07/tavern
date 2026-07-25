@@ -1,0 +1,21 @@
+{
+  "navigation": {
+    "dashboard": "Übersicht",
+    "orders": "Bestellungen",
+    "products": "Produkte",
+    "categories": "Kategorien",
+    "settings": "Einstellungen",
+    "theme": "Design",
+    "campaigns": "Kampagnen",
+    "customers": "Kunden",
+    "reports": "Berichte"
+  },
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "loading": "Laden...",
+    "search": "Suchen"
+  }
+}

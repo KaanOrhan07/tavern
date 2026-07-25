@@ -1,0 +1,21 @@
+{
+  "navigation": {
+    "dashboard": "لوحة التحكم",
+    "orders": "الطلبات",
+    "products": "المنتجات",
+    "categories": "الفئات",
+    "settings": "الإعدادات",
+    "theme": "المظهر",
+    "campaigns": "الحملات",
+    "customers": "العملاء",
+    "reports": "التقارير"
+  },
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "loading": "جارٍ التحميل...",
+    "search": "بحث"
+  }
+}

@@ -5,13 +5,19 @@ const ADMIN_COOKIE = "tavern_admin";
 const PANEL_COOKIE = "tavern_session";
 const SESSION_DURATION = "12h";
 
-export type AdminSession = { role: "admin" };
+export type AdminSession = {
+  role: "admin";
+  adminUserId?: string;
+  sessionVersion?: number;
+};
+
 export type PanelSession = {
   role: "owner" | "staff";
   userId: string;
   businessId: string;
   businessSlug: string;
   name: string;
+  sessionVersion: number;
 };
 
 function secretKey() {
@@ -39,8 +45,15 @@ async function verify<T>(token: string): Promise<T | null> {
 
 // --- Admin ---
 
-export async function createAdminSession() {
-  const token = await sign({ role: "admin" });
+export async function createAdminSession(extra?: {
+  adminUserId?: string;
+  sessionVersion?: number;
+}) {
+  const token = await sign({
+    role: "admin",
+    adminUserId: extra?.adminUserId,
+    sessionVersion: extra?.sessionVersion ?? 1,
+  });
   (await cookies()).set(ADMIN_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -78,7 +91,11 @@ export async function getPanelSession(): Promise<PanelSession | null> {
   const token = (await cookies()).get(PANEL_COOKIE)?.value;
   if (!token) return null;
   const session = await verify<PanelSession>(token);
-  return session?.role === "owner" || session?.role === "staff" ? session : null;
+  if (!session || (session.role !== "owner" && session.role !== "staff")) return null;
+  return {
+    ...session,
+    sessionVersion: session.sessionVersion ?? 1,
+  };
 }
 
 export async function destroyPanelSession() {

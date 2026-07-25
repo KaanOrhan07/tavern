@@ -46,6 +46,10 @@ export default async function MenuPage({
       categories={categories.map((c) => ({
         id: c.id,
         name: c.name,
+        description: c.description,
+        imageUrl: c.imageUrl ? toDisplayImageUrl(c.imageUrl) : null,
+        icon: c.icon,
+        active: c.active,
         sortOrder: c.sortOrder,
         products: c.products.map((p) => ({
           id: p.id,

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getPanelSessionFor } from "@/lib/auth";
+import { destroyPanelSession, getPanelSessionFor } from "@/lib/auth";
 import { getFeatureMap } from "@/lib/features";
 import { PanelShell } from "@/components/panel/PanelShell";
 
@@ -16,14 +16,21 @@ export default async function PanelAppLayout({
   if (!session) redirect(`/panel/${isletmeSlug}/giris`);
 
   // Sırayla değil paralel çalıştır: her navigasyonda gecikmeyi azaltır
-  // (ikisi de session.businessId'ye bağlı, birbirine bağımlı değil)
-  const [business, features] = await Promise.all([
+  const [business, features, user] = await Promise.all([
     prisma.business.findUnique({
       where: { id: session.businessId },
       include: { type: true },
     }),
     getFeatureMap(session.businessId),
+    prisma.user.findFirst({
+      where: { id: session.userId, businessId: session.businessId },
+      select: { active: true, sessionVersion: true },
+    }),
   ]);
+  if (!user?.active || user.sessionVersion !== session.sessionVersion) {
+    await destroyPanelSession();
+    redirect(`/panel/${isletmeSlug}/giris`);
+  }
   if (!business) redirect("/panel");
   if (!business.active) {
     return (

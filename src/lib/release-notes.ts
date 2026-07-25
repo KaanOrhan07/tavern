@@ -1,5 +1,16 @@
 export const RELEASE_NOTES = [
   {
+    version: "2.0.0",
+    date: "25 Temmuz 2026",
+    highlights: [
+      "Güvenlik: PIN hash, sessionVersion, audit log, idempotency, Redis rate limit, şifre sıfırlama",
+      "Gelişmiş tema sistemi (preset + renkler + canlı önizleme)",
+      "Çoklu dil altyapısı (TR/EN/ES/DE/RU/AR) ve QR dil seçici + RTL",
+      "Kampanya popup/banner, AI menü analizi, müşteri listesi, gider takibi",
+      "Kategori görselleri, masa planı alanları, OrderItemStatus, CSV export",
+    ],
+  },
+  {
     version: "1.1.0",
     date: "17 Temmuz 2026",
     highlights: [

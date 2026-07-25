@@ -1,9 +1,12 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { defaultCustomerPath } from "@/lib/business-modules";
 import { toDisplayImageUrl } from "@/lib/storage-url";
+import { getOrCreateThemeSettings } from "@/lib/themes/service";
+import { themeToCssVariables } from "@/lib/themes/css-vars";
 
 export default async function CustomerLayout({
   children,
@@ -16,6 +19,7 @@ export default async function CustomerLayout({
   const business = await prisma.business.findUnique({
     where: { slug: isletmeSlug },
     select: {
+      id: true,
       name: true,
       active: true,
       theme: true,
@@ -27,11 +31,14 @@ export default async function CustomerLayout({
 
   const homeHref = defaultCustomerPath(isletmeSlug, business.type.key);
   const logoUrl = business.logoUrl ? toDisplayImageUrl(business.logoUrl) : null;
+  const themeSettings = await getOrCreateThemeSettings(business.id);
+  const cssVars = themeToCssVariables(themeSettings);
 
   return (
     <div
       data-tavern-theme={business.theme.toLowerCase()}
-      className="flex min-h-dvh flex-col overflow-x-hidden bg-ink text-cream"
+      className="tavern-theme flex min-h-dvh flex-col overflow-x-hidden bg-ink text-cream"
+      style={cssVars as CSSProperties}
     >
       <header className="sticky top-0 z-20 border-b border-ink-line bg-ink/95 backdrop-blur supports-[backdrop-filter]:bg-ink/90">
         <div className="mx-auto flex h-14 max-w-2xl items-center gap-3 px-4">

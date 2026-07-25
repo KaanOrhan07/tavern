@@ -1,0 +1,34 @@
+{
+  "navigation": {
+    "dashboard": "Dashboard",
+    "tables": "Tables",
+    "orders": "Orders",
+    "menu": "Menu",
+    "theme": "Theme",
+    "stock": "Stock",
+    "staff": "Staff",
+    "reports": "Reports",
+    "dayEnd": "Day End",
+    "requests": "Requests",
+    "settings": "Settings",
+    "appointments": "Appointments",
+    "services": "Services",
+    "locales": "Languages"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "loading": "Loading…",
+    "error": "An error occurred",
+    "success": "Success",
+    "confirm": "Confirm",
+    "back": "Back",
+    "logout": "Log out",
+    "search": "Search",
+    "noResults": "No results found",
+    "language": "Language"
+  }
+}

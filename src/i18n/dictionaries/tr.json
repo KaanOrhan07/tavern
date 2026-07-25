@@ -1,0 +1,34 @@
+{
+  "navigation": {
+    "dashboard": "Genel Bakış",
+    "tables": "Masalar",
+    "orders": "Adisyon",
+    "menu": "Menü",
+    "theme": "Tema",
+    "stock": "Stok",
+    "staff": "Personeller",
+    "reports": "Raporlar",
+    "dayEnd": "Gün Sonu",
+    "requests": "Talepler",
+    "settings": "Ayarlar",
+    "appointments": "Randevular",
+    "services": "Hizmetler",
+    "locales": "Diller"
+  },
+  "common": {
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "delete": "Sil",
+    "edit": "Düzenle",
+    "add": "Ekle",
+    "loading": "Yükleniyor…",
+    "error": "Bir hata oluştu",
+    "success": "İşlem başarılı",
+    "confirm": "Onayla",
+    "back": "Geri",
+    "logout": "Çıkış",
+    "search": "Ara",
+    "noResults": "Sonuç bulunamadı",
+    "language": "Dil"
+  }
+}

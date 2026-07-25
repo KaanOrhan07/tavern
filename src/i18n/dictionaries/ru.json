@@ -1,0 +1,21 @@
+{
+  "navigation": {
+    "dashboard": "Панель",
+    "orders": "Заказы",
+    "products": "Товары",
+    "categories": "Категории",
+    "settings": "Настройки",
+    "theme": "Тема",
+    "campaigns": "Акции",
+    "customers": "Клиенты",
+    "reports": "Отчёты"
+  },
+  "common": {
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "edit": "Изменить",
+    "loading": "Загрузка...",
+    "search": "Поиск"
+  }
+}

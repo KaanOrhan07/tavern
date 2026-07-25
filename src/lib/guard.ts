@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getPanelSession, type PanelSession } from "@/lib/auth";
+import { destroyPanelSession, getPanelSession, type PanelSession } from "@/lib/auth";
 import type { Business } from "@/generated/prisma/client";
 
 export type PanelContext = { session: PanelSession; business: Business };
 
 /**
- * Panel API uçları için ortak koruma: oturum + işletme aktiflik kontrolü.
- * Hata durumunda NextResponse döner, başarıda context döner.
+ * Panel API uçları için ortak koruma: oturum + işletme aktiflik + sessionVersion.
  */
 export async function requirePanel(options?: {
   ownerOnly?: boolean;
@@ -22,15 +21,30 @@ export async function requirePanel(options?: {
       { status: 403 }
     );
   }
-  const business = await prisma.business.findUnique({
-    where: { id: session.businessId },
-  });
+
+  const [business, user] = await Promise.all([
+    prisma.business.findUnique({ where: { id: session.businessId } }),
+    prisma.user.findFirst({
+      where: { id: session.userId, businessId: session.businessId },
+      select: { active: true, sessionVersion: true, role: true },
+    }),
+  ]);
+
   if (!business || !business.active) {
+    return NextResponse.json({ error: "İşletme aktif değil" }, { status: 403 });
+  }
+  if (!user || !user.active) {
+    await destroyPanelSession();
+    return NextResponse.json({ error: "Oturum geçersiz" }, { status: 401 });
+  }
+  if (user.sessionVersion !== session.sessionVersion) {
+    await destroyPanelSession();
     return NextResponse.json(
-      { error: "İşletme aktif değil" },
-      { status: 403 }
+      { error: "Oturumunuz sonlandırıldı, tekrar giriş yapın" },
+      { status: 401 }
     );
   }
+
   return { session, business };
 }
 
