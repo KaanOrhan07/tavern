@@ -33,7 +33,7 @@ export default function AdminLoginPage() {
     <main className="flex flex-1 items-center justify-center p-6">
       <Card className="w-full max-w-sm">
         <div className="mb-6 mt-2">
-          <TavernLogo size="md" showTagline />
+          <TavernLogo size="md" />
           <p className="mt-2 text-center text-xs text-cream-dim">
             Yönetici Girişi
           </p>
