@@ -82,6 +82,14 @@ model Business {
   barberSettings BarberSettings?
   services       Service[]
   appointments   Appointment[]
+  availabilityExceptions AvailabilityException[]
+
+  // 2.1.0
+  businessInfo         BusinessInfo?
+  subscription         BusinessSubscription?
+  subscriptionPayments PaymentRecord[]
+  loyaltyTiers         LoyaltyTier[]
+  loyaltyTransactions  LoyaltyTransaction[]
 
   @@index([organizationId])
 }
@@ -449,6 +457,11 @@ enum NotificationType {
   CALL_WAITER
   REQUEST_BILL
   NEW_APPOINTMENT
+  APPOINTMENT_APPROVED
+  APPOINTMENT_REJECTED
+  APPOINTMENT_RESCHEDULE
+  APPOINTMENT_REMINDER
+  APPOINTMENT_EXPIRED
 }
 
 model Notification {
@@ -465,35 +478,49 @@ model Notification {
 
 // Sadakat ayarları — işletme başına (feature flag ile kontrol)
 model LoyaltyConfig {
-  businessId              String   @id
-  business                Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  pointsPerSpendKurus     Int      @default(100) // harcanan her 1 TL (100 kuruş) = 1 puan
-  redeemThresholdPoints   Int      @default(100) // indirim için gereken minimum puan
-  redeemDiscountPercent   Int      @default(10) // indirim yüzdesi
-  updatedAt               DateTime @updatedAt
+  businessId               String   @id
+  business                 Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  pointsPerSpendKurus      Int      @default(100) // harcanan her 1 TL (100 kuruş) = 1 puan
+  redeemThresholdPoints    Int      @default(100) // indirim için gereken minimum puan
+  redeemDiscountPercent    Int      @default(10) // indirim yüzdesi
+  earningMode              String   @default("spend_based") // fixed | spend_based
+  fixedPointsPerCompletion Int      @default(10)
+  tierSystemEnabled         Boolean  @default(true)
+  referralInviterPoints    Int      @default(50)
+  referralInviteePoints    Int      @default(25)
+  updatedAt                DateTime @updatedAt
 }
 
 model LoyaltyAccount {
-  id         String   @id @default(cuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  phone      String // normalize: 05xxxxxxxxx
-  points     Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                   String       @id @default(cuid())
+  businessId           String
+  business             Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  phone                String // normalize: 05xxxxxxxxx
+  points               Int          @default(0)
+  lifetimeEarnedPoints Int          @default(0)
+  referralCode         String?      @unique
+  referredByPhone      String?
+  tierId               String?
+  tier                 LoyaltyTier? @relation(fields: [tierId], references: [id], onDelete: SetNull)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  transactions LoyaltyTransaction[]
 
   @@unique([businessId, phone])
+  @@index([businessId, lifetimeEarnedPoints])
 }
 
 // ============ BERBER / KUAFÖR MODÜLÜ ============
 
 model BarberSettings {
-  businessId  String   @id
-  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  slotMinutes Int      @default(30) // randevu slot aralığı (dakika)
-  openTime    String   @default("09:00") // HH:mm
-  closeTime   String   @default("20:00") // HH:mm
-  updatedAt   DateTime @updatedAt
+  businessId             String   @id
+  business               Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  slotMinutes            Int      @default(30) // randevu slot aralığı (dakika)
+  openTime               String   @default("09:00") // HH:mm
+  closeTime              String   @default("20:00") // HH:mm
+  responseTimeoutMinutes Int      @default(60) // randevu talebine yanıt süresi
+  updatedAt              DateTime @updatedAt
 }
 
 model Service {
@@ -525,29 +552,80 @@ model ServiceRecipeItem {
 }
 
 enum AppointmentStatus {
-  BOOKED
-  CANCELLED
+  PENDING_BUSINESS_APPROVAL
+  APPROVED
+  REJECTED
+  RESCHEDULE_PROPOSED
+  RESCHEDULE_ACCEPTED
   COMPLETED
+  NO_SHOW
+  CANCELLED_BY_CUSTOMER
+  CANCELLED_BY_BUSINESS
+  EXPIRED
+  BOOKED // deprecated → APPROVED
+  CANCELLED // deprecated → CANCELLED_BY_CUSTOMER
 }
 
 model Appointment {
-  id            String            @id @default(cuid())
-  businessId    String
-  business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  staffId       String
-  staff         User              @relation("StaffAppointments", fields: [staffId], references: [id], onDelete: Cascade)
-  serviceId     String
-  service       Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  customerName  String
-  customerPhone String
-  startAt       DateTime
-  endAt         DateTime
-  status        AppointmentStatus @default(BOOKED)
-  cancelToken   String            @unique @default(uuid())
-  createdAt     DateTime          @default(now())
+  id                   String            @id @default(cuid())
+  businessId           String
+  business             Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  staffId              String
+  staff                User              @relation("StaffAppointments", fields: [staffId], references: [id], onDelete: Cascade)
+  serviceId            String
+  service              Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  customerName         String
+  customerPhone        String
+  customerProfileId    String?
+  customerProfile      CustomerProfile?  @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
+  startAt              DateTime
+  endAt                DateTime
+  proposedStartAt      DateTime?
+  proposedEndAt        DateTime?
+  status               AppointmentStatus @default(PENDING_BUSINESS_APPROVAL)
+  statusNote           String?
+  cancelToken          String            @unique @default(uuid())
+  expiresAt            DateTime?
+  reminderSentAt       DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  statusHistory AppointmentStatusHistory[]
 
   @@index([businessId, startAt])
   @@index([staffId, startAt, status])
+  @@index([businessId, status])
+  @@index([expiresAt])
+}
+
+model AppointmentStatusHistory {
+  id            String            @id @default(cuid())
+  appointmentId String
+  appointment   Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  fromStatus    AppointmentStatus?
+  toStatus      AppointmentStatus
+  changedById   String?
+  changedByRole String?
+  note          String?
+  createdAt     DateTime          @default(now())
+
+  @@index([appointmentId, createdAt])
+}
+
+model AvailabilityException {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  staffId    String?
+  date       DateTime // gün (date-only)
+  allDay     Boolean  @default(true)
+  startTime  String? // HH:mm
+  endTime    String?
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, date])
+  @@index([staffId, date])
 }
 
 // ============ GÜVENLİK / ALTYAPI (2.0) ============
@@ -840,4 +918,99 @@ model OrganizationMembership {
   createdAt      DateTime     @default(now())
 
   @@unique([organizationId, userId])
+}
+
+// ============ 2.1.0 — MÜŞTERİ / SADAKAT / ADMIN / İŞLETME BİLGİ ============
+
+model CustomerProfile {
+  id              String    @id @default(cuid())
+  phone           String    @unique
+  phoneVerified   Boolean   @default(false)
+  pinHash         String?
+  fullName        String?
+  birthDate       DateTime?
+  preferredLocale String    @default("tr")
+  totalVisits     Int       @default(0)
+  accountStatus   String    @default("active") // active | suspended | deleted
+  forcePinChange  Boolean   @default(false)
+  failedPinAttempts Int     @default(0)
+  lockedUntil     DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  appointments Appointment[]
+}
+
+model BusinessInfo {
+  businessId   String   @id
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  address      String?
+  latitude     Float?
+  longitude    Float?
+  phone        String?
+  instagramUrl String?
+  tiktokUrl    String?
+  websiteUrl   String?
+  description  String?
+  updatedAt    DateTime @updatedAt
+}
+
+model BusinessSubscription {
+  businessId      String    @id
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  paymentDueDay   Int       @default(1)
+  paymentStatus   String    @default("current") // current | pending | overdue
+  lastPaymentDate DateTime?
+  nextPaymentDate DateTime?
+  monthlyFeeKurus Int?
+  notes           String?
+  updatedAt       DateTime  @updatedAt
+}
+
+model PaymentRecord {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  amountKurus Int
+  paidAt      DateTime @default(now())
+  recordedBy  String
+  method      String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([businessId, paidAt])
+}
+
+model LoyaltyTier {
+  id              String   @id @default(cuid())
+  businessId      String
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  tierName        String
+  minLifetimePoints Int      @default(0)
+  pointMultiplier Float    @default(1.0)
+  rankOrder       Int      @default(0)
+  perks           Json?
+  createdAt       DateTime @default(now())
+
+  accounts LoyaltyAccount[]
+
+  @@unique([businessId, tierName])
+  @@index([businessId, minLifetimePoints])
+}
+
+model LoyaltyTransaction {
+  id               String         @id @default(cuid())
+  businessId       String
+  business         Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  loyaltyAccountId String
+  loyaltyAccount   LoyaltyAccount @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
+  sourceType       String // order_completed | appointment_completed | referral | manual | redeem | birthday
+  sourceEntityId   String?
+  points           Int
+  balanceAfter     Int
+  createdAt        DateTime       @default(now())
+
+  @@index([businessId, createdAt])
+  @@index([loyaltyAccountId, createdAt])
 }

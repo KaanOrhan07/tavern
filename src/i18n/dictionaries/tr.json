@@ -30,5 +30,19 @@
     "search": "Ara",
     "noResults": "Sonuç bulunamadı",
     "language": "Dil"
+  },
+  "appointmentStatus": {
+    "PENDING_BUSINESS_APPROVAL": "Onay bekliyor",
+    "APPROVED": "Onaylandı",
+    "REJECTED": "Reddedildi",
+    "RESCHEDULE_PROPOSED": "Alternatif saat",
+    "RESCHEDULE_ACCEPTED": "Yeni saat kabul",
+    "COMPLETED": "Tamamlandı",
+    "NO_SHOW": "Gelmedi",
+    "CANCELLED_BY_CUSTOMER": "Müşteri iptal",
+    "CANCELLED_BY_BUSINESS": "İşletme iptal",
+    "EXPIRED": "Süresi doldu",
+    "BOOKED": "Onaylandı",
+    "CANCELLED": "İptal"
   }
 }

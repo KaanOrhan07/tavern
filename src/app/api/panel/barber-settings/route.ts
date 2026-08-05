@@ -14,6 +14,10 @@ const schema = z
     slotMinutes: z.number().int().min(5).max(180),
     openTime: z.string().regex(/^\d{2}:\d{2}$/),
     closeTime: z.string().regex(/^\d{2}:\d{2}$/),
+    responseTimeoutMinutes: z
+      .union([z.literal(30), z.literal(60), z.literal(180), z.literal(720)])
+      .optional()
+      .default(60),
   })
   .refine((d) => parseHm(d.openTime) < parseHm(d.closeTime), {
     message: "Açılış saati kapanıştan önce olmalı",
@@ -41,6 +45,7 @@ export async function GET() {
       slotMinutes: 30,
       openTime: "09:00",
       closeTime: "20:00",
+      responseTimeoutMinutes: 60,
     },
   });
 }

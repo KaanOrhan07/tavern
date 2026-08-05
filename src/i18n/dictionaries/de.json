@@ -17,5 +17,19 @@
     "edit": "Bearbeiten",
     "loading": "Laden...",
     "search": "Suchen"
+  },
+  "appointmentStatus": {
+    "PENDING_BUSINESS_APPROVAL": "Wartet auf Freigabe",
+    "APPROVED": "Genehmigt",
+    "REJECTED": "Abgelehnt",
+    "RESCHEDULE_PROPOSED": "Neuer Termin vorgeschlagen",
+    "RESCHEDULE_ACCEPTED": "Neuer Termin akzeptiert",
+    "COMPLETED": "Abgeschlossen",
+    "NO_SHOW": "Nicht erschienen",
+    "CANCELLED_BY_CUSTOMER": "Vom Kunden storniert",
+    "CANCELLED_BY_BUSINESS": "Vom Betrieb storniert",
+    "EXPIRED": "Abgelaufen",
+    "BOOKED": "Genehmigt",
+    "CANCELLED": "Storniert"
   }
 }

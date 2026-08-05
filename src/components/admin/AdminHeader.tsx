@@ -49,13 +49,34 @@ export function AdminHeader() {
       </div>
       {open && (
         <nav className="border-t border-ink-line bg-ink-soft">
-          <div className="mx-auto max-w-5xl px-4 py-2 sm:px-6">
+          <div className="mx-auto max-w-5xl space-y-1 px-4 py-2 sm:px-6">
             <Link
               href="/admin/isletmeler"
               onClick={() => setOpen(false)}
               className="block rounded-lg px-3 py-2.5 text-sm text-cream hover:bg-ink-card"
             >
               İşletmeler
+            </Link>
+            <Link
+              href="/admin/abonelikler"
+              onClick={() => setOpen(false)}
+              className="block rounded-lg px-3 py-2.5 text-sm text-cream hover:bg-ink-card"
+            >
+              Abonelik / Ödeme
+            </Link>
+            <Link
+              href="/admin/musteriler"
+              onClick={() => setOpen(false)}
+              className="block rounded-lg px-3 py-2.5 text-sm text-cream hover:bg-ink-card"
+            >
+              Müşteriler
+            </Link>
+            <Link
+              href="/admin/canli-siparisler"
+              onClick={() => setOpen(false)}
+              className="block rounded-lg px-3 py-2.5 text-sm text-cream hover:bg-ink-card"
+            >
+              Canlı Siparişler
             </Link>
           </div>
         </nav>

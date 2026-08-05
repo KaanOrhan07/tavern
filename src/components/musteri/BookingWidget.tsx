@@ -103,7 +103,10 @@ export function BookingWidget({ slug }: { slug: string }) {
   if (success) {
     return (
       <Card className="space-y-3">
-        <p className="font-medium text-ok">Randevunuz alındı!</p>
+        <p className="font-medium text-ok">Randevu talebiniz alındı!</p>
+        <p className="text-sm text-cream-dim">
+          İşletme onayladıktan sonra randevunuz kesinleşir.
+        </p>
         <p className="text-sm text-cream-dim">
           {new Date(success.startAt).toLocaleString("tr-TR", {
             dateStyle: "full",

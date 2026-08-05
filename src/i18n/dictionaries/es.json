@@ -17,5 +17,19 @@
     "edit": "Editar",
     "loading": "Cargando...",
     "search": "Buscar"
+  },
+  "appointmentStatus": {
+    "PENDING_BUSINESS_APPROVAL": "Pendiente de aprobación",
+    "APPROVED": "Aprobado",
+    "REJECTED": "Rechazado",
+    "RESCHEDULE_PROPOSED": "Reprogramación propuesta",
+    "RESCHEDULE_ACCEPTED": "Reprogramación aceptada",
+    "COMPLETED": "Completado",
+    "NO_SHOW": "No presentado",
+    "CANCELLED_BY_CUSTOMER": "Cancelado por el cliente",
+    "CANCELLED_BY_BUSINESS": "Cancelado por el negocio",
+    "EXPIRED": "Caducado",
+    "BOOKED": "Aprobado",
+    "CANCELLED": "Cancelado"
   }
 }

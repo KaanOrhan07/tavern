@@ -30,5 +30,19 @@
     "search": "Search",
     "noResults": "No results found",
     "language": "Language"
+  },
+  "appointmentStatus": {
+    "PENDING_BUSINESS_APPROVAL": "Awaiting approval",
+    "APPROVED": "Approved",
+    "REJECTED": "Rejected",
+    "RESCHEDULE_PROPOSED": "Reschedule proposed",
+    "RESCHEDULE_ACCEPTED": "Reschedule accepted",
+    "COMPLETED": "Completed",
+    "NO_SHOW": "No-show",
+    "CANCELLED_BY_CUSTOMER": "Cancelled by customer",
+    "CANCELLED_BY_BUSINESS": "Cancelled by business",
+    "EXPIRED": "Expired",
+    "BOOKED": "Approved",
+    "CANCELLED": "Cancelled"
   }
 }

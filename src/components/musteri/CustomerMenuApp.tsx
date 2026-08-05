@@ -80,6 +80,7 @@ export function CustomerMenuApp({
         </div>
         <MenuWelcome
           businessName={businessName}
+          slug={slug}
           logoUrl={logoUrl}
           bannerUrl={bannerUrl}
           categories={menuCategories}

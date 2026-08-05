@@ -11,7 +11,16 @@ type BillItem = {
   quantity: number;
   paidQuantity: number;
   delivered: boolean;
+  status?: string;
   note?: string | null;
+};
+
+const STATUS_TR: Record<string, string> = {
+  PENDING: "Alındı",
+  PREPARING: "Hazırlanıyor",
+  READY: "Hazır",
+  DELIVERED: "Masana geldi",
+  CANCELLED: "İptal",
 };
 
 export function CustomerTable({
@@ -80,7 +89,8 @@ export function CustomerTable({
                     <p className="text-[11px] text-cream-dim">Not: {item.note}</p>
                   )}
                   <p className="text-[11px] text-cream-dim">
-                    {item.delivered ? "Teslim edildi" : "Hazırlanıyor"}
+                    {STATUS_TR[item.status ?? ""] ??
+                      (item.delivered ? "Masana geldi" : "Hazırlanıyor")}
                     {item.paidQuantity > 0 && ` · ${item.paidQuantity} adet ödendi`}
                   </p>
                 </div>

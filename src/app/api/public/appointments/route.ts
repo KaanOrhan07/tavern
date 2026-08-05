@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { isBarberBusiness } from "@/lib/business-modules";
-import { isFeatureEnabled } from "@/lib/features";
-import { getAvailableSlots, deductServiceStock } from "@/lib/appointments";
+import { getAvailableSlots, getBarberSettings } from "@/lib/appointments";
 import { formatDateInTz } from "@/lib/business-timezone";
 import { normalizePhone } from "@/lib/loyalty";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { writeAuditLog } from "@/lib/audit";
 
 const schema = z.object({
   slug: z.string().min(1),
@@ -15,6 +15,7 @@ const schema = z.object({
   startAt: z.string().datetime(),
   customerName: z.string().min(2).max(80),
   customerPhone: z.string().min(10).max(20),
+  customerProfileId: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Seçilen saat artık müsait değil" }, { status: 409 });
   }
 
-  const [staff, service] = await Promise.all([
+  const [staff, service, settings] = await Promise.all([
     prisma.user.findFirst({
       where: {
         id: body.data.staffId,
@@ -68,33 +69,73 @@ export async function POST(request: Request) {
     prisma.service.findFirst({
       where: { id: body.data.serviceId, businessId: business.id, active: true },
     }),
+    getBarberSettings(business.id),
   ]);
   if (!staff || !service) {
     return NextResponse.json({ error: "Hizmet veya personel bulunamadı" }, { status: 404 });
   }
 
-  const appointment = await prisma.appointment.create({
-    data: {
-      businessId: business.id,
-      staffId: staff.id,
-      serviceId: service.id,
-      customerName: body.data.customerName.trim(),
-      customerPhone: phone,
-      startAt,
-      endAt: new Date(match.endAt),
-      status: "BOOKED",
-    },
+  let customerProfileId: string | null = null;
+  if (body.data.customerProfileId) {
+    const profile = await prisma.customerProfile.findFirst({
+      where: {
+        id: body.data.customerProfileId,
+        phone,
+        accountStatus: "active",
+        phoneVerified: true,
+      },
+    });
+    if (profile) customerProfileId = profile.id;
+  }
+
+  const expiresAt = new Date(Date.now() + settings.responseTimeoutMinutes * 60_000);
+
+  const appointment = await prisma.$transaction(async (tx) => {
+    const row = await tx.appointment.create({
+      data: {
+        businessId: business.id,
+        staffId: staff.id,
+        serviceId: service.id,
+        customerName: body.data.customerName.trim(),
+        customerPhone: phone,
+        customerProfileId,
+        startAt,
+        endAt: new Date(match.endAt),
+        status: "PENDING_BUSINESS_APPROVAL",
+        expiresAt,
+      },
+    });
+    await tx.appointmentStatusHistory.create({
+      data: {
+        appointmentId: row.id,
+        fromStatus: null,
+        toStatus: "PENDING_BUSINESS_APPROVAL",
+        changedByRole: "customer",
+        note: "Randevu talebi oluşturuldu",
+      },
+    });
+    return row;
   });
 
-  if (await isFeatureEnabled(business.id, "stock")) {
-    await deductServiceStock(business.id, service.id);
-  }
+  await writeAuditLog({
+    businessId: business.id,
+    action: "CREATE",
+    entityType: "Appointment",
+    entityId: appointment.id,
+    afterData: {
+      status: appointment.status,
+      staffId: staff.id,
+      serviceId: service.id,
+      startAt: appointment.startAt,
+    },
+    ipAddress: ip,
+  });
 
   await prisma.notification.create({
     data: {
       businessId: business.id,
       type: "NEW_APPOINTMENT",
-      message: `${staff.name}: ${service.name} — ${appointment.customerName} (${appointment.startAt.toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })})`,
+      message: `Yeni talep — ${staff.name}: ${service.name} — ${appointment.customerName} (${appointment.startAt.toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })})`,
     },
   });
 
@@ -105,6 +146,8 @@ export async function POST(request: Request) {
       cancelToken: appointment.cancelToken,
       startAt: appointment.startAt,
       endAt: appointment.endAt,
+      status: appointment.status,
+      expiresAt: appointment.expiresAt,
     },
   });
 }

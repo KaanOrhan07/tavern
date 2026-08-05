@@ -1,9 +1,24 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { destroyPanelSession, getPanelSession, type PanelSession } from "@/lib/auth";
+import {
+  destroyPanelSession,
+  getAdminSession,
+  getPanelSession,
+  type AdminSession,
+  type PanelSession,
+} from "@/lib/auth";
 import type { Business } from "@/generated/prisma/client";
 
 export type PanelContext = { session: PanelSession; business: Business };
+export type AdminContext = { session: AdminSession };
+
+export async function requireAdmin(): Promise<AdminContext | NextResponse> {
+  const session = await getAdminSession();
+  if (!session) {
+    return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
+  }
+  return { session };
+}
 
 /**
  * Panel API uçları için ortak koruma: oturum + işletme aktiflik + sessionVersion.
@@ -49,7 +64,7 @@ export async function requirePanel(options?: {
 }
 
 export function isGuardError(
-  result: PanelContext | NextResponse
+  result: PanelContext | AdminContext | NextResponse
 ): result is NextResponse {
   return result instanceof NextResponse;
 }

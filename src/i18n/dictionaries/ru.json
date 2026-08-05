@@ -17,5 +17,19 @@
     "edit": "Изменить",
     "loading": "Загрузка...",
     "search": "Поиск"
+  },
+  "appointmentStatus": {
+    "PENDING_BUSINESS_APPROVAL": "Ожидает подтверждения",
+    "APPROVED": "Подтверждено",
+    "REJECTED": "Отклонено",
+    "RESCHEDULE_PROPOSED": "Предложено перенести",
+    "RESCHEDULE_ACCEPTED": "Перенос принят",
+    "COMPLETED": "Завершено",
+    "NO_SHOW": "Не явился",
+    "CANCELLED_BY_CUSTOMER": "Отменено клиентом",
+    "CANCELLED_BY_BUSINESS": "Отменено бизнесом",
+    "EXPIRED": "Истекло",
+    "BOOKED": "Подтверждено",
+    "CANCELLED": "Отменено"
   }
 }

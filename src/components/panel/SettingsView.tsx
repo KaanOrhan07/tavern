@@ -57,7 +57,17 @@ export function SettingsView({
   const [slotMinutes, setSlotMinutes] = useState("30");
   const [openTime, setOpenTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("20:00");
+  const [responseTimeoutMinutes, setResponseTimeoutMinutes] = useState("60");
   const [savingBarber, setSavingBarber] = useState(false);
+  const [bizAddress, setBizAddress] = useState("");
+  const [bizPhone, setBizPhone] = useState("");
+  const [bizLat, setBizLat] = useState("");
+  const [bizLng, setBizLng] = useState("");
+  const [bizInstagram, setBizInstagram] = useState("");
+  const [bizTiktok, setBizTiktok] = useState("");
+  const [bizWebsite, setBizWebsite] = useState("");
+  const [bizDescription, setBizDescription] = useState("");
+  const [savingBizInfo, setSavingBizInfo] = useState(false);
   const [kitchenClearMinutes, setKitchenClearMinutes] = useState(
     String(kitchenCompletedClearMinutes)
   );
@@ -72,8 +82,25 @@ export function SettingsView({
         setSlotMinutes(String(data.settings.slotMinutes));
         setOpenTime(data.settings.openTime);
         setCloseTime(data.settings.closeTime);
+        setResponseTimeoutMinutes(String(data.settings.responseTimeoutMinutes ?? 60));
       });
   }, [isBarber]);
+
+  useEffect(() => {
+    fetch("/api/panel/business-info")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.info) return;
+        setBizAddress(data.info.address ?? "");
+        setBizPhone(data.info.phone ?? "");
+        setBizLat(data.info.latitude != null ? String(data.info.latitude) : "");
+        setBizLng(data.info.longitude != null ? String(data.info.longitude) : "");
+        setBizInstagram(data.info.instagramUrl ?? "");
+        setBizTiktok(data.info.tiktokUrl ?? "");
+        setBizWebsite(data.info.websiteUrl ?? "");
+        setBizDescription(data.info.description ?? "");
+      });
+  }, []);
 
   async function saveBarberSettings(e: React.FormEvent) {
     e.preventDefault();
@@ -88,11 +115,39 @@ export function SettingsView({
     const res = await fetch("/api/panel/barber-settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slotMinutes: minutes, openTime, closeTime }),
+      body: JSON.stringify({
+        slotMinutes: minutes,
+        openTime,
+        closeTime,
+        responseTimeoutMinutes: Number(responseTimeoutMinutes),
+      }),
     });
     if (!res.ok) setError("Randevu ayarları kaydedilemedi");
     else setOkMessage("Randevu ayarları güncellendi");
     setSavingBarber(false);
+  }
+
+  async function saveBusinessInfo(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingBizInfo(true);
+    setError(null);
+    const res = await fetch("/api/panel/business-info", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        address: bizAddress || null,
+        phone: bizPhone || null,
+        latitude: bizLat ? Number(bizLat) : null,
+        longitude: bizLng ? Number(bizLng) : null,
+        instagramUrl: bizInstagram || null,
+        tiktokUrl: bizTiktok || null,
+        websiteUrl: bizWebsite || null,
+        description: bizDescription || null,
+      }),
+    });
+    if (!res.ok) setError("İşletme bilgisi kaydedilemedi");
+    else setOkMessage("İşletme bilgisi güncellendi");
+    setSavingBizInfo(false);
   }
 
 
@@ -515,12 +570,69 @@ export function SettingsView({
                 required
               />
             </div>
+            <div className="sm:col-span-3">
+              <Label>Talebe yanıt süresi</Label>
+              <select
+                className="w-full rounded-lg border border-ink-line bg-ink-card px-3 py-2 text-sm"
+                value={responseTimeoutMinutes}
+                onChange={(e) => setResponseTimeoutMinutes(e.target.value)}
+              >
+                <option value="30">30 dakika</option>
+                <option value="60">1 saat</option>
+                <option value="180">3 saat</option>
+                <option value="720">12 saat</option>
+              </select>
+            </div>
             <Button type="submit" disabled={savingBarber} className="sm:col-span-3">
               {savingBarber ? "Kaydediliyor..." : "Randevu Ayarlarını Kaydet"}
             </Button>
           </form>
         </Card>
       )}
+
+      <Card>
+        <p className="mb-1 font-medium">İşletme Bilgisi / Yol Tarifi</p>
+        <p className="mb-4 text-xs text-cream-dim">
+          QR karşılama ekranında yol tarifi ve işletme bilgi sayfasında görünür.
+        </p>
+        <form onSubmit={saveBusinessInfo} className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Label>Adres</Label>
+            <Input value={bizAddress} onChange={(e) => setBizAddress(e.target.value)} />
+          </div>
+          <div>
+            <Label>Telefon</Label>
+            <Input value={bizPhone} onChange={(e) => setBizPhone(e.target.value)} />
+          </div>
+          <div>
+            <Label>Enlem</Label>
+            <Input value={bizLat} onChange={(e) => setBizLat(e.target.value)} placeholder="41.01" />
+          </div>
+          <div>
+            <Label>Boylam</Label>
+            <Input value={bizLng} onChange={(e) => setBizLng(e.target.value)} placeholder="28.97" />
+          </div>
+          <div>
+            <Label>Instagram URL</Label>
+            <Input value={bizInstagram} onChange={(e) => setBizInstagram(e.target.value)} />
+          </div>
+          <div>
+            <Label>TikTok URL</Label>
+            <Input value={bizTiktok} onChange={(e) => setBizTiktok(e.target.value)} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Web sitesi</Label>
+            <Input value={bizWebsite} onChange={(e) => setBizWebsite(e.target.value)} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Kısa tanıtım</Label>
+            <Input value={bizDescription} onChange={(e) => setBizDescription(e.target.value)} />
+          </div>
+          <Button type="submit" disabled={savingBizInfo} className="sm:col-span-2">
+            {savingBizInfo ? "Kaydediliyor..." : "İşletme Bilgisini Kaydet"}
+          </Button>
+        </form>
+      </Card>
 
       {!isBarber && (
       <Card>

@@ -17,5 +17,19 @@
     "edit": "تعديل",
     "loading": "جارٍ التحميل...",
     "search": "بحث"
+  },
+  "appointmentStatus": {
+    "PENDING_BUSINESS_APPROVAL": "بانتظار الموافقة",
+    "APPROVED": "تمت الموافقة",
+    "REJECTED": "مرفوض",
+    "RESCHEDULE_PROPOSED": "اقتراح موعد بديل",
+    "RESCHEDULE_ACCEPTED": "تم قبول الموعد البديل",
+    "COMPLETED": "مكتمل",
+    "NO_SHOW": "لم يحضر",
+    "CANCELLED_BY_CUSTOMER": "ألغاه العميل",
+    "CANCELLED_BY_BUSINESS": "ألغاه العمل",
+    "EXPIRED": "منتهي الصلاحية",
+    "BOOKED": "تمت الموافقة",
+    "CANCELLED": "ملغى"
   }
 }

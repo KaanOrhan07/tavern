@@ -57,6 +57,7 @@ function CategoryTileVisual({
 
 export function MenuWelcome({
   businessName,
+  slug,
   logoUrl,
   bannerUrl,
   categories,
@@ -64,12 +65,36 @@ export function MenuWelcome({
   onSelectCategory,
 }: {
   businessName: string;
+  slug: string;
   logoUrl: string | null;
   bannerUrl: string | null;
   categories: Category[];
   onOpenMenu: () => void;
   onSelectCategory: (categoryId: string) => void;
 }) {
+  const [mapsUrl, setMapsUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/public/business-info?slug=${encodeURIComponent(slug)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.business) return;
+        const { latitude, longitude, address } = data.business;
+        if (latitude != null && longitude != null) {
+          setMapsUrl(
+            `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
+          );
+        } else if (address) {
+          setMapsUrl(
+            `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
   const resolvedLogo = logoUrl ? toDisplayImageUrl(logoUrl) : null;
   const resolvedBanner = bannerUrl ? toDisplayImageUrl(bannerUrl) : null;
 
@@ -124,6 +149,24 @@ export function MenuWelcome({
             {businessName}
           </h1>
           <p className="mt-1 text-sm text-cream-dim">Menümüze hoş geldiniz</p>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-sm">
+            {mapsUrl && (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gold underline-offset-2 hover:underline"
+              >
+                Yol Tarifi Al
+              </a>
+            )}
+            <a
+              href={`/${slug}/bilgi`}
+              className="text-cream-dim underline-offset-2 hover:underline"
+            >
+              İşletme Bilgisi
+            </a>
+          </div>
         </div>
 
         <div className="mt-5 grid min-h-0 flex-1 grid-cols-2 content-start gap-2.5 overflow-y-auto overscroll-contain pb-3 opacity-0 [animation:menu-fade-up_0.65s_ease-out_forwards] [-webkit-overflow-scrolling:touch]">

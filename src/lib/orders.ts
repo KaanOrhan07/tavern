@@ -293,6 +293,8 @@ export async function recordPayment(params: {
           businessId,
           phone: order.customerPhone,
           spentKurus: net,
+          sourceType: "order_completed",
+          sourceEntityId: orderId,
         });
       }
     }
