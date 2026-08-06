@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, EmptyState } from "@/components/ui";
+import { Badge, Card, EmptyState } from "@/components/ui";
 import { formatKurus } from "@/lib/utils";
 
 type Customer = {
   id: string;
   phoneMasked: string;
   name: string | null;
-  orderCount: number;
+  totalVisits: number;
+  totalOrders: number;
+  totalAppointments: number;
   totalSpendKurus: number;
-  lastOrderAt: string | null;
+  lastVisitAt: string | null;
+  tierName: string | null;
+  loyaltyPoints: number;
 };
 
 export default function CustomersPage() {
@@ -27,14 +31,14 @@ export default function CustomersPage() {
       <div>
         <h1 className="text-xl font-semibold">Müşteriler</h1>
         <p className="mt-1 text-sm text-cream-dim">
-          Telefon numaraları maskelenir. Resmi KVKK süreçleri için veri silme ayrı ele alınmalıdır.
+          Yalnızca bu işletmedeki ziyaret ve puanlar. Telefonlar maskelenir.
         </p>
       </div>
 
       {customers.length === 0 ? (
         <EmptyState
-          title="Henüz müşteri profili yok"
-          description="Sadakat veya siparişlerle müşteri kayıtları oluştukça burada listelenir."
+          title="Henüz müşteri yok"
+          description="Hesaplı müşteriler sipariş/randevu tamamladıkça burada listelenir."
         />
       ) : (
         <Card className="p-0">
@@ -42,11 +46,21 @@ export default function CustomersPage() {
             {customers.map((c) => (
               <div key={c.id} className="flex flex-wrap items-center gap-3 p-4">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">{c.name || "İsimsiz"}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium">{c.name || "İsimsiz"}</p>
+                    {c.tierName && <Badge tone="gold">{c.tierName}</Badge>}
+                  </div>
                   <p className="text-xs text-cream-dim">{c.phoneMasked}</p>
+                  <p className="mt-1 text-[11px] text-cream-dim">
+                    {c.totalVisits} ziyaret · {c.totalOrders} sipariş · {c.totalAppointments}{" "}
+                    randevu
+                    {c.lastVisitAt
+                      ? ` · son ${new Date(c.lastVisitAt).toLocaleDateString("tr-TR")}`
+                      : ""}
+                  </p>
                 </div>
                 <div className="text-end text-sm">
-                  <p>{c.orderCount} sipariş</p>
+                  <p className="font-medium text-gold">{c.loyaltyPoints} puan</p>
                   <p className="text-cream-dim">{formatKurus(c.totalSpendKurus)}</p>
                 </div>
               </div>

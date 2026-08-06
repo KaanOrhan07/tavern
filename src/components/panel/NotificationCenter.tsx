@@ -95,7 +95,13 @@ function subscribe(listener: Listener) {
   listeners.add(listener);
   if (isFirst) {
     pollOnce();
-    pollTimer = setInterval(pollOnce, POLL_INTERVAL_MS);
+    pollTimer = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      pollOnce();
+    }, POLL_INTERVAL_MS);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onNotificationVisibility);
+    }
   }
   return () => {
     listeners.delete(listener);
@@ -103,8 +109,17 @@ function subscribe(listener: Listener) {
       clearInterval(pollTimer);
       pollTimer = null;
       knownIds = null;
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onNotificationVisibility);
+      }
     }
   };
+}
+
+function onNotificationVisibility() {
+  if (typeof document !== "undefined" && !document.hidden && listeners.size > 0) {
+    pollOnce();
+  }
 }
 
 export function NotificationCenter({

@@ -8,6 +8,7 @@ import { MenuList } from "@/components/musteri/MenuList";
 import { DailyPick } from "@/components/musteri/DailyPick";
 import { SuggestionWidget } from "@/components/musteri/SuggestionWidget";
 import { CampaignPopup } from "@/components/musteri/CampaignPopup";
+import { CustomerAccountChip } from "@/components/musteri/CustomerAccountChip";
 import {
   LanguageSelector,
   readStoredLocale,
@@ -75,7 +76,8 @@ export function CustomerMenuApp({
   if (welcome) {
     return (
       <div className="relative" dir={isRtlLocale(locale) ? "rtl" : "ltr"}>
-        <div className="pointer-events-auto absolute end-4 top-[max(0.75rem,env(safe-area-inset-top))] z-50">
+        <div className="pointer-events-auto absolute end-4 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex items-center gap-2">
+          <CustomerAccountChip returnTo={`/${slug}`} />
           {langControl}
         </div>
         <MenuWelcome
@@ -107,7 +109,10 @@ export function CustomerMenuApp({
 
   return (
     <div className="relative space-y-6" dir={isRtlLocale(locale) ? "rtl" : "ltr"}>
-      <div className="flex justify-end">{langControl}</div>
+      <div className="flex items-center justify-end gap-2">
+        <CustomerAccountChip returnTo={`/${slug}`} />
+        {langControl}
+      </div>
       <CampaignPopup
         slug={slug}
         locale={locale}

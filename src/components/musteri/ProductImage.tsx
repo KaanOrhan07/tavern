@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { toDisplayImageUrl } from "@/lib/storage-url";
 
 /** Ürün fotoğrafı bulunamazsa/yüklenemezse gösterilecek basit yer tutucu. */
@@ -20,16 +21,31 @@ export function ProductImage({
   const [failedFor, setFailedFor] = useState<string | null>(null);
   const showPlaceholder = !resolved || failedFor === resolved;
 
+  if (showPlaceholder) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={PLACEHOLDER_IMAGE} alt={alt} className={className} decoding="async" />
+    );
+  }
+
+  const unoptimized =
+    resolved.startsWith("/api/") ||
+    resolved.startsWith("data:") ||
+    !/^https?:\/\//i.test(resolved);
+
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      key={resolved}
-      src={showPlaceholder ? PLACEHOLDER_IMAGE : resolved}
-      alt={alt}
-      className={className}
-      loading="lazy"
-      decoding="async"
-      onError={() => setFailedFor(resolved)}
-    />
+    <span className={`relative inline-block overflow-hidden ${className ?? ""}`}>
+      <Image
+        key={resolved}
+        src={resolved}
+        alt={alt}
+        fill
+        sizes="96px"
+        className="object-cover"
+        unoptimized={unoptimized}
+        loading="lazy"
+        onError={() => setFailedFor(resolved)}
+      />
+    </span>
   );
 }

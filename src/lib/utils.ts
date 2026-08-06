@@ -1,3 +1,13 @@
+/** Müşteri hesap route'ları — işletme slug olarak kullanılamaz. */
+export const RESERVED_BUSINESS_SLUGS = new Set([
+  "giris-yap",
+  "kayit-ol",
+  "hesabim",
+  "admin",
+  "api",
+  "panel",
+]);
+
 /** Türkçe karakterleri de dönüştüren slug üretici. */
 export function slugify(text: string): string {
   const map: Record<string, string> = {
@@ -11,6 +21,10 @@ export function slugify(text: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+export function isReservedBusinessSlug(slug: string): boolean {
+  return RESERVED_BUSINESS_SLUGS.has(slug);
 }
 
 /** Kuruş cinsinden tutarı "₺1.234,56" biçiminde gösterir. */

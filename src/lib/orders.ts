@@ -3,6 +3,7 @@ import { isFeatureEnabled } from "@/lib/features";
 import { hasEnoughStock, isOutOfStock } from "@/lib/stock";
 import { afterDeduction, recipeDeductionBase } from "@/lib/units";
 import { earnLoyaltyPoints, redeemLoyaltyPoints, restoreLoyaltyRedeem } from "@/lib/loyalty";
+import { upsertCustomerBusinessStats } from "@/lib/customer-stats";
 import type { OrderSource } from "@/generated/prisma/client";
 
 export type NewOrderItem = {
@@ -91,32 +92,33 @@ export async function addItemsToTable(params: {
       });
     }
 
-    const createdItems = [];
-    for (const item of items) {
-      const product = productMap.get(item.productId)!;
-      const variant = item.variantId
-        ? product.variants.find((v) => v.id === item.variantId)
-        : null;
-      const unitKurus = variant?.priceKurus ?? product.priceKurus;
-      const productName = variant ? `${product.name} (${variant.name})` : product.name;
+    const orderId = order.id;
+    const createdItems = await tx.orderItem.createManyAndReturn({
+      data: items.map((item) => {
+        const product = productMap.get(item.productId)!;
+        const variant = item.variantId
+          ? product.variants.find((v) => v.id === item.variantId)
+          : null;
+        const unitKurus = variant?.priceKurus ?? product.priceKurus;
+        const productName = variant ? `${product.name} (${variant.name})` : product.name;
+        const note = item.note?.trim() ? item.note.trim().slice(0, 200) : null;
+        return {
+          orderId,
+          productId: product.id,
+          variantId: variant?.id,
+          productName,
+          unitKurus,
+          quantity: item.quantity,
+          note,
+        };
+      }),
+    });
 
-      const note = item.note?.trim() ? item.note.trim().slice(0, 200) : null;
-
-      createdItems.push(
-        await tx.orderItem.create({
-          data: {
-            orderId: order.id,
-            productId: product.id,
-            variantId: variant?.id,
-            productName,
-            unitKurus,
-            quantity: item.quantity,
-            note,
-          },
-        })
-      );
-
-      if (stockEnabled) {
+    if (stockEnabled) {
+      type Deduction = { unit: string; currentQty: number; deductBase: number };
+      const deductions = new Map<string, Deduction>();
+      for (const item of items) {
+        const product = productMap.get(item.productId)!;
         for (const recipeItem of product.recipeItems) {
           const ingredient = recipeItem.ingredient;
           const deductBase = recipeDeductionBase(
@@ -124,13 +126,25 @@ export async function addItemsToTable(params: {
             ingredient.unit,
             item.quantity
           );
-          const next = afterDeduction(ingredient.quantity, ingredient.unit, deductBase);
-          await tx.ingredient.update({
-            where: { id: recipeItem.ingredientId },
-            data: next,
-          });
+          const prev = deductions.get(recipeItem.ingredientId);
+          if (prev) prev.deductBase += deductBase;
+          else {
+            deductions.set(recipeItem.ingredientId, {
+              unit: ingredient.unit,
+              currentQty: ingredient.quantity,
+              deductBase,
+            });
+          }
         }
       }
+      await Promise.all(
+        [...deductions].map(([ingredientId, d]) =>
+          tx.ingredient.update({
+            where: { id: ingredientId },
+            data: afterDeduction(d.currentQty, d.unit, d.deductBase),
+          })
+        )
+      );
     }
 
     if (redeemLoyalty && loyaltyEnabled && customerPhone && order.loyaltyRedeemPoints === 0) {
@@ -299,6 +313,25 @@ export async function recordPayment(params: {
       }
     }
 
-    return { amountKurus, orderClosed: allPaid };
+    const gross = items.reduce((s, i) => s + i.unitKurus * i.quantity, 0);
+    const netPaid = Math.max(0, gross - order.loyaltyDiscountKurus);
+
+    return {
+      amountKurus,
+      orderClosed: allPaid,
+      customerPhone: order.customerPhone,
+      spentKurus: netPaid,
+      businessId,
+    };
+  }).then(async (result) => {
+    if (result.orderClosed) {
+      await upsertCustomerBusinessStats({
+        phone: result.customerPhone,
+        businessId: result.businessId,
+        kind: "order",
+        spentKurus: result.spentKurus,
+      });
+    }
+    return { amountKurus: result.amountKurus, orderClosed: result.orderClosed };
   });
 }

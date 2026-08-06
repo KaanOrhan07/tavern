@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { formatKurus } from "@/lib/utils";
 import { CustomerMenuApp } from "@/components/musteri/CustomerMenuApp";
 import type { PublicMenuCategory, PublicMenuProduct } from "@/lib/public-menu-data";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 
 type BillItem = {
   productName: string;
@@ -59,12 +60,7 @@ export function CustomerTable({
     }
   }, [qrToken]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch, setState fetch sonrası çalışır
-    loadBill();
-    const id = setInterval(loadBill, 12_000);
-    return () => clearInterval(id);
-  }, [loadBill]);
+  useVisibleInterval(loadBill, 15_000);
 
   const billTotals = useMemo(() => {
     const list = bill ?? [];

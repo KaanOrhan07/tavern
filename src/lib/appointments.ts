@@ -12,6 +12,7 @@ import { writeAuditLog } from "@/lib/audit";
 import type { PanelSession } from "@/lib/auth";
 import { earnLoyaltyPoints } from "@/lib/loyalty";
 import { isFeatureEnabled } from "@/lib/features";
+import { upsertCustomerBusinessStats } from "@/lib/customer-stats";
 
 export type BarberSettingsData = {
   slotMinutes: number;
@@ -35,8 +36,11 @@ export async function getBarberSettings(businessId: string): Promise<BarberSetti
   };
 }
 
-/** Kapanış + 2 saat geçmiş onaylı randevuları tamamlandı sayar. */
-export async function archivePastAppointments(businessId: string) {
+/**
+ * Kapanış + 2 saat geçmiş onaylı randevuları toplu tamamlar.
+ * Okuma yollarında çağrılmaz — cron / jobs üzerinden çalıştırılır.
+ */
+export async function archivePastAppointments(businessId: string): Promise<number> {
   const settings = await getBarberSettings(businessId);
   const closeMin = parseHm(settings.closeTime);
   const now = new Date();
@@ -46,7 +50,13 @@ export async function archivePastAppointments(businessId: string) {
       businessId,
       status: { in: CONFLICT_STATUSES },
     },
-    select: { id: true, startAt: true, status: true },
+    select: {
+      id: true,
+      startAt: true,
+      status: true,
+      customerPhone: true,
+      service: { select: { priceKurus: true } },
+    },
   });
 
   const toComplete = active.filter((a) => {
@@ -55,17 +65,63 @@ export async function archivePastAppointments(businessId: string) {
     return now >= archiveAfter;
   });
 
-  if (toComplete.length === 0) return;
+  if (toComplete.length === 0) return 0;
 
-  for (const a of toComplete) {
-    await transitionAppointment({
-      appointmentId: a.id,
-      businessId,
-      toStatus: "COMPLETED",
-      changedByRole: "system",
-      note: "Gün sonu otomatik arşiv",
-    });
+  const ids = toComplete.map((a) => a.id);
+  await prisma.$transaction([
+    prisma.appointment.updateMany({
+      where: { id: { in: ids } },
+      data: { status: "COMPLETED" },
+    }),
+    prisma.appointmentStatusHistory.createMany({
+      data: toComplete.map((a) => ({
+        appointmentId: a.id,
+        fromStatus: a.status,
+        toStatus: "COMPLETED" as const,
+        changedByRole: "system",
+        note: "Gün sonu otomatik arşiv",
+      })),
+    }),
+  ]);
+
+  await Promise.allSettled(
+    toComplete.map((a) =>
+      upsertCustomerBusinessStats({
+        phone: a.customerPhone,
+        businessId,
+        kind: "appointment",
+        spentKurus: a.service.priceKurus,
+      })
+    )
+  );
+
+  if (await isFeatureEnabled(businessId, "loyalty_points")) {
+    await Promise.allSettled(
+      toComplete.map((a) =>
+        prisma.$transaction((tx) =>
+          earnLoyaltyPoints(tx, {
+            businessId,
+            phone: a.customerPhone,
+            spentKurus: a.service.priceKurus,
+            sourceType: "appointment_completed",
+            sourceEntityId: a.id,
+          })
+        )
+      )
+    );
   }
+
+  return ids.length;
+}
+
+/** Tüm berber işletmelerinde gün sonu arşivi (cron). */
+export async function archiveAllPastAppointments(): Promise<number> {
+  const rows = await prisma.barberSettings.findMany({ select: { businessId: true } });
+  let total = 0;
+  for (const row of rows) {
+    total += await archivePastAppointments(row.businessId);
+  }
+  return total;
 }
 
 function generateSlotStarts(dateYmd: string, settings: BarberSettingsData): Date[] {
@@ -94,8 +150,6 @@ export async function getAvailableSlots(params: {
   staffId: string;
   date: string;
 }): Promise<AvailableSlot[]> {
-  await archivePastAppointments(params.businessId);
-
   const dayStart = zonedLocalToUtc(params.date, "00:00");
   const dayEnd = zonedLocalToUtc(addDaysYmd(params.date, 1), "00:00");
 
@@ -103,6 +157,7 @@ export async function getAvailableSlots(params: {
     getBarberSettings(params.businessId),
     prisma.service.findFirst({
       where: { id: params.serviceId, businessId: params.businessId, active: true },
+      select: { id: true, durationMinutes: true },
     }),
     prisma.appointment.findMany({
       where: {
@@ -111,6 +166,7 @@ export async function getAvailableSlots(params: {
         status: { in: CONFLICT_STATUSES },
         startAt: { gte: dayStart, lt: dayEnd },
       },
+      select: { startAt: true, endAt: true },
     }),
     prisma.availabilityException.findMany({
       where: {
@@ -118,6 +174,7 @@ export async function getAvailableSlots(params: {
         date: dayStart,
         OR: [{ staffId: null }, { staffId: params.staffId }],
       },
+      select: { allDay: true, startTime: true, endTime: true },
     }),
   ]);
 
@@ -163,13 +220,21 @@ export async function getAvailableSlots(params: {
 export async function deductServiceStock(businessId: string, serviceId: string) {
   const items = await prisma.serviceRecipeItem.findMany({
     where: { serviceId, service: { businessId } },
+    select: { ingredientId: true, amount: true },
   });
+  if (items.length === 0) return;
+  const byIngredient = new Map<string, number>();
   for (const item of items) {
-    await prisma.ingredient.update({
-      where: { id: item.ingredientId },
-      data: { quantity: { decrement: item.amount } },
-    });
+    byIngredient.set(item.ingredientId, (byIngredient.get(item.ingredientId) ?? 0) + item.amount);
   }
+  await Promise.all(
+    [...byIngredient].map(([ingredientId, amount]) =>
+      prisma.ingredient.update({
+        where: { id: ingredientId },
+        data: { quantity: { decrement: amount } },
+      })
+    )
+  );
 }
 
 type TransitionParams = {
@@ -262,6 +327,13 @@ export async function transitionAppointment(params: TransitionParams) {
   }
 
   if (params.toStatus === "COMPLETED") {
+    await upsertCustomerBusinessStats({
+      phone: appointment.customerPhone,
+      businessId: params.businessId,
+      kind: "appointment",
+      spentKurus: appointment.service.priceKurus,
+      customerProfileId: appointment.customerProfileId,
+    });
     if (await isFeatureEnabled(params.businessId, "loyalty_points")) {
       await prisma.$transaction(async (tx) => {
         await earnLoyaltyPoints(tx, {
@@ -299,7 +371,7 @@ export async function transitionAppointment(params: TransitionParams) {
   return updated;
 }
 
-/** Süresi dolan onay bekleyen talepleri expired yapar. */
+/** Süresi dolan onay bekleyen talepleri toplu expired yapar. */
 export async function expirePendingAppointments() {
   const now = new Date();
   const pending = await prisma.appointment.findMany({
@@ -307,22 +379,33 @@ export async function expirePendingAppointments() {
       status: { in: ["PENDING_BUSINESS_APPROVAL", "RESCHEDULE_PROPOSED"] },
       expiresAt: { lte: now },
     },
-    select: { id: true, businessId: true },
+    select: { id: true, businessId: true, status: true },
   });
+  if (pending.length === 0) return 0;
 
-  for (const a of pending) {
-    try {
-      await transitionAppointment({
+  const ids = pending.map((a) => a.id);
+  await prisma.$transaction([
+    prisma.appointment.updateMany({
+      where: { id: { in: ids } },
+      data: { status: "EXPIRED" },
+    }),
+    prisma.appointmentStatusHistory.createMany({
+      data: pending.map((a) => ({
         appointmentId: a.id,
-        businessId: a.businessId,
-        toStatus: "EXPIRED",
+        fromStatus: a.status,
+        toStatus: "EXPIRED" as const,
         changedByRole: "system",
         note: "Yanıt süresi doldu",
-      });
-    } catch {
-      /* race / invalid transition */
-    }
-  }
+      })),
+    }),
+    prisma.notification.createMany({
+      data: pending.map((a) => ({
+        businessId: a.businessId,
+        type: "APPOINTMENT_EXPIRED" as const,
+        message: "Randevu talebinin yanıt süresi doldu",
+      })),
+    }),
+  ]);
   return pending.length;
 }
 
@@ -338,26 +421,28 @@ export async function sendAppointmentReminders() {
       reminderSentAt: null,
       startAt: { gte: in30, lt: in31 },
     },
-    include: {
+    select: {
+      id: true,
+      businessId: true,
+      customerName: true,
       service: { select: { name: true } },
       staff: { select: { name: true } },
     },
   });
+  if (upcoming.length === 0) return 0;
 
-  for (const a of upcoming) {
-    await prisma.$transaction([
-      prisma.notification.create({
-        data: {
-          businessId: a.businessId,
-          type: "APPOINTMENT_REMINDER",
-          message: `30 dk: ${a.staff.name} — ${a.service.name} (${a.customerName})`,
-        },
-      }),
-      prisma.appointment.update({
-        where: { id: a.id },
-        data: { reminderSentAt: now },
-      }),
-    ]);
-  }
+  await prisma.$transaction([
+    prisma.notification.createMany({
+      data: upcoming.map((a) => ({
+        businessId: a.businessId,
+        type: "APPOINTMENT_REMINDER" as const,
+        message: `30 dk: ${a.staff.name} — ${a.service.name} (${a.customerName})`,
+      })),
+    }),
+    prisma.appointment.updateMany({
+      where: { id: { in: upcoming.map((a) => a.id) } },
+      data: { reminderSentAt: now },
+    }),
+  ]);
   return upcoming.length;
 }

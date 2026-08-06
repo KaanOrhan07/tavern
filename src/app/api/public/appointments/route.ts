@@ -7,6 +7,7 @@ import { formatDateInTz } from "@/lib/business-timezone";
 import { normalizePhone } from "@/lib/loyalty";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit";
+import { getCustomerSession } from "@/lib/customer-auth";
 
 const schema = z.object({
   slug: z.string().min(1),
@@ -76,7 +77,10 @@ export async function POST(request: Request) {
   }
 
   let customerProfileId: string | null = null;
-  if (body.data.customerProfileId) {
+  const session = await getCustomerSession();
+  if (session?.phone === phone) {
+    customerProfileId = session.profileId;
+  } else if (body.data.customerProfileId) {
     const profile = await prisma.customerProfile.findFirst({
       where: {
         id: body.data.customerProfileId,

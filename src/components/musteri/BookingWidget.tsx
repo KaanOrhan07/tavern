@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button, Card, Input, Label, Select } from "@/components/ui";
 import { formatKurus } from "@/lib/utils";
 import { DEFAULT_BUSINESS_TZ, todayYmdInTz } from "@/lib/business-timezone";
+import { CustomerAccountChip } from "@/components/musteri/CustomerAccountChip";
 
 type Service = { id: string; name: string; durationMinutes: number; priceKurus: number };
 type Staff = { id: string; name: string };
@@ -19,6 +21,7 @@ export function BookingWidget({ slug }: { slug: string }) {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [customerProfileId, setCustomerProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ cancelToken: string; startAt: string } | null>(null);
@@ -36,6 +39,18 @@ export function BookingWidget({ slug }: { slug: string }) {
       })
       .catch(() => setError("Randevu bilgileri yüklenemedi"));
   }, [slug]);
+
+  useEffect(() => {
+    fetch("/api/public/customer/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data?.profile) return;
+        setCustomerProfileId(data.profile.id);
+        setCustomerPhone(data.profile.phone ?? "");
+        if (data.profile.fullName) setCustomerName(data.profile.fullName);
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!serviceId || !staffId || !date) {
@@ -70,6 +85,7 @@ export function BookingWidget({ slug }: { slug: string }) {
         startAt: selectedSlot,
         customerName,
         customerPhone,
+        customerProfileId: customerProfileId ?? undefined,
       }),
     });
     const data = await res.json().catch(() => null);
@@ -117,12 +133,31 @@ export function BookingWidget({ slug }: { slug: string }) {
         <Button variant="secondary" onClick={cancelBooking} disabled={loading}>
           Randevuyu İptal Et
         </Button>
+        {customerProfileId && (
+          <Link href="/panel/hesabim" className="block text-center text-sm text-gold hover:underline">
+            Hesabımda gör
+          </Link>
+        )}
       </Card>
     );
   }
 
   return (
     <form onSubmit={book} className="space-y-4">
+      <div className="flex justify-end">
+        <CustomerAccountChip returnTo={`/${slug}/randevu`} />
+      </div>
+
+      {!customerProfileId && (
+        <p className="rounded-lg border border-ink-line bg-ink-card px-3 py-2 text-xs text-cream-dim">
+          İstersen{" "}
+          <Link href={`/panel/kayit-ol?next=/${slug}/randevu`} className="text-gold hover:underline">
+            hesap aç
+          </Link>{" "}
+          — randevu geçmişin ve sık gittiğin yerler kaydolur. Misafir olarak da devam edebilirsin.
+        </p>
+      )}
+
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <div>
@@ -203,6 +238,7 @@ export function BookingWidget({ slug }: { slug: string }) {
           placeholder="05xx xxx xx xx"
           inputMode="tel"
           required
+          readOnly={Boolean(customerProfileId)}
         />
       </div>
 

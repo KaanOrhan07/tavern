@@ -24,7 +24,7 @@ export default async function PublicBookingPage({
       <div>
         <h1 className="text-lg font-semibold">Randevu Al</h1>
         <p className="mt-1 text-sm text-cream-dim">
-          Hizmet, personel ve saat seçerek randevunuzu oluşturun. Hesap gerekmez.
+          Hizmet, personel ve saat seçerek randevu oluştur. Hesap zorunlu değil; açarsan geçmişin ve sık gittiğin yerler kaydolur.
         </p>
       </div>
       <BookingWidget slug={isletmeSlug} />

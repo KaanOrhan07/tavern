@@ -23,19 +23,27 @@ export async function GET(request: Request) {
     orderBy: { createdAt: "desc" },
     take: 200,
     include: {
-      appointments: {
+      businessStats: {
         select: { businessId: true, business: { select: { name: true } } },
-        take: 20,
       },
     },
   });
 
+  const phones = customers.map((c) => c.phone);
+  const loyalty =
+    phones.length > 0
+      ? await prisma.loyaltyAccount.groupBy({
+          by: ["phone"],
+          where: { phone: { in: phones } },
+          _sum: { points: true },
+        })
+      : [];
+  const pointsMap = new Map(loyalty.map((l) => [l.phone, l._sum.points ?? 0]));
+
   return NextResponse.json({
     ok: true,
     customers: customers.map((c) => {
-      const businessNames = [
-        ...new Set(c.appointments.map((a) => a.business.name)),
-      ];
+      const businessNames = [...new Set(c.businessStats.map((s) => s.business.name))];
       return {
         id: c.id,
         phone: c.phone,
@@ -46,6 +54,8 @@ export async function GET(request: Request) {
         createdAt: c.createdAt,
         lastLoginAt: c.lastLoginAt,
         businesses: businessNames,
+        businessCount: businessNames.length,
+        totalPoints: pointsMap.get(c.phone) ?? 0,
       };
     }),
   });

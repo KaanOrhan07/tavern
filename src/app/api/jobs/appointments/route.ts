@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import {
+  archiveAllPastAppointments,
   expirePendingAppointments,
   sendAppointmentReminders,
 } from "@/lib/appointments";
 
 /**
  * Cron / harici scheduler: Authorization: Bearer $CRON_SECRET
- * Süresi dolan talepleri expire eder + 30 dk hatırlatma gönderir.
+ * Expire + hatırlatma + gün sonu arşivi.
  */
 export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -18,9 +19,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
   }
 
-  const expired = await expirePendingAppointments();
-  const reminders = await sendAppointmentReminders();
-  return NextResponse.json({ ok: true, expired, reminders });
+  const [expired, reminders, archived] = await Promise.all([
+    expirePendingAppointments(),
+    sendAppointmentReminders(),
+    archiveAllPastAppointments(),
+  ]);
+  return NextResponse.json({ ok: true, expired, reminders, archived });
 }
 
 export async function GET(request: Request) {

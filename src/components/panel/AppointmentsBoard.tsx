@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Badge, Button, Card, EmptyState, Input, Label } from "@/components/ui";
 import { formatKurus } from "@/lib/utils";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 
 type Appointment = {
   id: string;
@@ -56,12 +57,7 @@ export function AppointmentsBoard() {
     }
   }, []);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch
-    load();
-    const id = setInterval(load, 20_000);
-    return () => clearInterval(id);
-  }, [load]);
+  useVisibleInterval(load, 25_000);
 
   async function act(
     id: string,

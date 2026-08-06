@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import QRCode from "qrcode";
 import { Badge, Button, Card, EmptyState } from "@/components/ui";
 import { formatKurus } from "@/lib/utils";
 import {
   isPrinterConnected,
   printKitchenTicket,
 } from "@/lib/printer";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 
 type OrderItem = {
   id: string;
@@ -72,21 +72,19 @@ export function TableDetail({
     }
   }, [tableId]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch, setState fetch sonrası çalışır
-    load();
-    const id = setInterval(load, 8_000);
-    return () => clearInterval(id);
-  }, [load]);
+  useVisibleInterval(load, 12_000);
 
   useEffect(() => {
+    if (!showQr || qrDataUrl) return;
     const url = `${window.location.origin}/${slug}/masa/${qrToken}`;
-    QRCode.toDataURL(url, {
-      width: 400,
-      margin: 2,
-      color: { dark: "#0A0A0A", light: "#F5EFE0" },
-    }).then(setQrDataUrl);
-  }, [slug, qrToken]);
+    void import("qrcode").then((QRCode) =>
+      QRCode.toDataURL(url, {
+        width: 400,
+        margin: 2,
+        color: { dark: "#0A0A0A", light: "#F5EFE0" },
+      }).then(setQrDataUrl)
+    );
+  }, [showQr, qrDataUrl, slug, qrToken]);
 
   const totals = useMemo(() => {
     const list = items ?? [];

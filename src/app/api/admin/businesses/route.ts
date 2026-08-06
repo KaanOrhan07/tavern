@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { slugify } from "@/lib/utils";
+import { isReservedBusinessSlug, slugify } from "@/lib/utils";
 
 const createSchema = z.object({
   name: z.string().min(2),
@@ -29,10 +29,11 @@ export async function POST(request: Request) {
     );
   }
 
-  // Benzersiz slug üret
-  const base = slugify(name);
+  // Benzersiz slug üret (müşteri hesap route'ları rezerve)
+  let base = slugify(name) || "isletme";
+  if (isReservedBusinessSlug(base)) base = `${base}-isletme`;
   let slug = base;
-  for (let i = 2; await prisma.business.findUnique({ where: { slug } }); i++) {
+  for (let i = 2; await prisma.business.findUnique({ where: { slug } }) || isReservedBusinessSlug(slug); i++) {
     slug = `${base}-${i}`;
   }
 

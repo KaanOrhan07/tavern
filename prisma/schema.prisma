@@ -90,6 +90,7 @@ model Business {
   subscriptionPayments PaymentRecord[]
   loyaltyTiers         LoyaltyTier[]
   loyaltyTransactions  LoyaltyTransaction[]
+  customerBusinessStats CustomerBusinessStats[]
 
   @@index([organizationId])
 }
@@ -329,6 +330,8 @@ model Order {
 
   @@index([businessId, status])
   @@index([businessId, createdAt])
+  @@index([tableId, status])
+  @@index([businessId, tableId, status])
 }
 
 enum OrderItemStatus {
@@ -940,6 +943,31 @@ model CustomerProfile {
   updatedAt       DateTime  @updatedAt
 
   appointments Appointment[]
+  businessStats CustomerBusinessStats[]
+}
+
+/// Müşteri × işletme istatistikleri (puan/geçmiş işletmeye özel)
+model CustomerBusinessStats {
+  id                  String   @id @default(cuid())
+  customerProfileId   String
+  customerProfile     CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade)
+  businessId          String
+  business            Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  firstVisitAt        DateTime @default(now())
+  lastVisitAt         DateTime @default(now())
+  totalVisits         Int      @default(0)
+  totalOrders         Int      @default(0)
+  totalAppointments   Int      @default(0)
+  totalSpentKurus     Int      @default(0)
+  favoriteProductId   String?
+  favoriteServiceId   String?
+  favoriteCategoryId  String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([customerProfileId, businessId])
+  @@index([businessId, lastVisitAt])
+  @@index([customerProfileId, totalVisits])
 }
 
 model BusinessInfo {

@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { cookies } from "next/headers";
 import {
-  CUSTOMER_COOKIE,
   confirmCustomerOtp,
   createCustomerSessionToken,
+  setCustomerSessionCookie,
 } from "@/lib/customer-auth";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -29,13 +28,7 @@ export async function POST(request: Request) {
   try {
     const profile = await confirmCustomerOtp(body.data);
     const token = await createCustomerSessionToken(profile);
-    (await cookies()).set(CUSTOMER_COOKIE, token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30,
-    });
+    await setCustomerSessionCookie(token);
     return NextResponse.json({
       ok: true,
       profile: {

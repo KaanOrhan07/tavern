@@ -6,6 +6,7 @@ import {
   playNotificationChimeOnce,
   removeNotificationAudioContext,
 } from "@/lib/notification-chime";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 
 type KitchenItem = {
   id: string;
@@ -17,7 +18,7 @@ type KitchenItem = {
   preparedAt: string | null;
 };
 
-const POLL_MS = 8_000;
+const POLL_MS = 12_000;
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("tr-TR", {
@@ -144,11 +145,7 @@ export function KitchenDisplay() {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-    const id = setInterval(load, POLL_MS);
-    return () => clearInterval(id);
-  }, [load]);
+  useVisibleInterval(load, POLL_MS);
 
   async function markPrepared(itemId: string) {
     setMarkingId(itemId);

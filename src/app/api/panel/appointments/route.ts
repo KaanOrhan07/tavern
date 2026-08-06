@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
 import { isBarberBusiness } from "@/lib/business-modules";
-import { archivePastAppointments, transitionAppointment } from "@/lib/appointments";
+import { transitionAppointment } from "@/lib/appointments";
 import { STATUS_LABEL_TR } from "@/lib/appointment-status";
 
 export async function GET() {
@@ -17,8 +17,6 @@ export async function GET() {
   if (!business || !isBarberBusiness(business.type.key)) {
     return NextResponse.json({ error: "Bu modül bu işletme türü için geçerli değil" }, { status: 403 });
   }
-
-  await archivePastAppointments(ctx.business.id);
 
   const since = new Date();
   since.setHours(0, 0, 0, 0);

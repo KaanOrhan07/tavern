@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { Badge, Button, Card, EmptyState, Input } from "@/components/ui";
 
 type Customer = {
@@ -13,6 +14,8 @@ type Customer = {
   createdAt: string;
   lastLoginAt: string | null;
   businesses: string[];
+  businessCount?: number;
+  totalPoints?: number;
 };
 
 export default function AdminCustomersPage() {
@@ -82,15 +85,14 @@ export default function AdminCustomersPage() {
         <div className="space-y-2">
           {items.map((c) => (
             <Card key={c.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div>
+              <Link href={`/admin/musteriler/${c.id}`} className="min-w-0 flex-1 hover:opacity-90">
                 <p className="font-medium">{c.fullName || "İsimsiz"}</p>
                 <p className="text-sm text-cream-dim">{c.phone}</p>
                 <p className="mt-1 text-xs text-cream-dim">
-                  {c.businesses.length
-                    ? c.businesses.join(", ")
-                    : "Henüz işletme ilişkisi yok"}
+                  {c.businessCount ?? c.businesses.length} işletme · {c.totalPoints ?? 0} puan ·{" "}
+                  {c.totalVisits} ziyaret
                 </p>
-              </div>
+              </Link>
               <div className="flex items-center gap-2">
                 <Badge tone={c.accountStatus === "active" ? "ok" : "warn"}>
                   {c.accountStatus}

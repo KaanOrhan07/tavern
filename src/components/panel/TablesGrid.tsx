@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Card, EmptyState, Input, Label } from "@/components/ui";
 import { formatKurus } from "@/lib/utils";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 
 type TableSummary = {
   id: string;
@@ -30,12 +31,7 @@ export function TablesGrid({ slug, isOwner }: { slug: string; isOwner: boolean }
     }
   }, []);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch, setState fetch sonrası çalışır
-    load();
-    const id = setInterval(load, 10_000);
-    return () => clearInterval(id);
-  }, [load]);
+  useVisibleInterval(load, 15_000);
 
   async function createTable(e: React.FormEvent) {
     e.preventDefault();

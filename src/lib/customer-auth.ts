@@ -1,11 +1,13 @@
 import { SignJWT, jwtVerify } from "jose";
 import { createHash, randomInt } from "crypto";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { hashPin, validatePinFormat, verifyPinHash } from "@/lib/pin";
 import { normalizePhone } from "@/lib/loyalty";
 
-const CUSTOMER_COOKIE = "tavern_customer";
+export const CUSTOMER_COOKIE = "tavern_customer";
 const OTP_TTL_SEC = 10 * 60;
+const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 
 export type CustomerSession = {
   role: "customer";
@@ -23,6 +25,14 @@ function hashOtp(otp: string) {
   return createHash("sha256").update(otp).digest("hex");
 }
 
+function otpDebugEnabled() {
+  return (
+    process.env.NODE_ENV !== "production" ||
+    process.env.CUSTOMER_OTP_DEBUG === "1" ||
+    process.env.CUSTOMER_OTP_DEBUG === "true"
+  );
+}
+
 export async function createOtpChallenge(phone: string) {
   const otp = String(randomInt(100000, 999999));
   const token = await new SignJWT({
@@ -35,11 +45,7 @@ export async function createOtpChallenge(phone: string) {
     .setExpirationTime(`${OTP_TTL_SEC}s`)
     .sign(secretKey());
 
-  // SMS sağlayıcı yoksa geliştirmede kodu döndür; prod'da log'a yazılmaz
-  const debug =
-    process.env.NODE_ENV !== "production" || process.env.CUSTOMER_OTP_DEBUG === "1";
-
-  return { challengeToken: token, debugOtp: debug ? otp : undefined };
+  return { challengeToken: token, debugOtp: otpDebugEnabled() ? otp : undefined };
 }
 
 export async function verifyOtpChallenge(challengeToken: string, otp: string, phone: string) {
@@ -103,11 +109,10 @@ export async function confirmCustomerOtp(input: {
   const ok = await verifyOtpChallenge(input.challengeToken, input.otp, phone);
   if (!ok) throw new Error("Doğrulama kodu hatalı veya süresi dolmuş");
 
-  const profile = await prisma.customerProfile.update({
+  return prisma.customerProfile.update({
     where: { phone },
     data: { phoneVerified: true, lastLoginAt: new Date(), failedPinAttempts: 0 },
   });
-  return profile;
 }
 
 export async function loginCustomer(input: { phone: string; pin: string }) {
@@ -155,4 +160,48 @@ export async function createCustomerSessionToken(profile: { id: string; phone: s
     .sign(secretKey());
 }
 
-export { CUSTOMER_COOKIE };
+export async function setCustomerSessionCookie(token: string) {
+  (await cookies()).set(CUSTOMER_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: SESSION_MAX_AGE,
+  });
+}
+
+export async function clearCustomerSessionCookie() {
+  (await cookies()).delete(CUSTOMER_COOKIE);
+}
+
+export async function getCustomerSession(): Promise<CustomerSession | null> {
+  const token = (await cookies()).get(CUSTOMER_COOKIE)?.value;
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, secretKey());
+    if (payload.role !== "customer" || !payload.profileId || !payload.phone) return null;
+    return {
+      role: "customer",
+      profileId: String(payload.profileId),
+      phone: String(payload.phone),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function requireCustomerSession(): Promise<CustomerSession> {
+  const session = await getCustomerSession();
+  if (!session) throw new Error("Giriş gerekli");
+  return session;
+}
+
+/** Sipariş/randevu tamamlanınca ziyaret sayacı. */
+export async function bumpCustomerVisit(phone: string | null | undefined) {
+  const normalized = phone ? normalizePhone(phone) : null;
+  if (!normalized) return;
+  await prisma.customerProfile.updateMany({
+    where: { phone: normalized, phoneVerified: true },
+    data: { totalVisits: { increment: 1 } },
+  });
+}

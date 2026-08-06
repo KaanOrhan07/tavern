@@ -1,5 +1,6 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { isFeatureEnabled } from "@/lib/features";
+import { FEATURES, type FeatureKey } from "@/lib/feature-defs";
 import { getTopSellingProducts } from "@/lib/best-sellers";
 import { pickDailyProduct } from "@/lib/daily-pick";
 import { isOutOfStock } from "@/lib/stock";
@@ -42,37 +43,57 @@ export type PublicMenuData = {
   loyaltyEnabled: boolean;
 };
 
-/** Müşteri menüsü ve QR masa sayfası için ortak kategori/ürün verisi. */
-export async function loadPublicMenuData(businessId: string): Promise<PublicMenuData> {
-  const [categories, suggestionEnabled, stockEnabled, bestsellersEnabled, variantsEnabled, loyaltyEnabled] =
-    await Promise.all([
-      prisma.category.findMany({
-        where: { businessId, active: true },
-        orderBy: { sortOrder: "asc" },
-        include: {
-          products: {
-            where: { active: true },
-            orderBy: { name: "asc" },
-            include: {
-              variants: { where: { active: true }, orderBy: { sortOrder: "asc" } },
-              recipeItems: {
-                select: {
-                  amount: true,
-                  ingredient: { select: { quantity: true, unit: true } },
-                },
-              },
-            },
-          },
-        },
-      }),
-      isFeatureEnabled(businessId, "ai_suggestion"),
-      isFeatureEnabled(businessId, "stock"),
-      isFeatureEnabled(businessId, "best_sellers"),
-      isFeatureEnabled(businessId, "product_variants"),
-      isFeatureEnabled(businessId, "loyalty_points"),
-    ]);
+async function loadFeatureFlags(businessId: string): Promise<Record<FeatureKey, boolean>> {
+  const rows = await prisma.businessFeature.findMany({
+    where: { businessId },
+    select: { featureKey: true, enabled: true },
+  });
+  const map = new Map(rows.map((r) => [r.featureKey, r.enabled]));
+  const result = {} as Record<FeatureKey, boolean>;
+  for (const f of FEATURES) result[f.key] = map.get(f.key) ?? true;
+  return result;
+}
 
-  const mapProduct = (p: (typeof categories)[0]["products"][0]): PublicMenuProduct => {
+async function loadPublicMenuDataUncached(businessId: string): Promise<PublicMenuData> {
+  const features = await loadFeatureFlags(businessId);
+  const suggestionEnabled = features.ai_suggestion;
+  const stockEnabled = features.stock;
+  const bestsellersEnabled = features.best_sellers;
+  const variantsEnabled = features.product_variants;
+  const loyaltyEnabled = features.loyalty_points;
+
+  const categories = await prisma.category.findMany({
+    where: { businessId, active: true },
+    orderBy: { sortOrder: "asc" },
+    include: {
+      products: {
+        where: { active: true },
+        orderBy: { name: "asc" },
+        include: {
+          variants: { where: { active: true }, orderBy: { sortOrder: "asc" } },
+          ...(stockEnabled
+            ? {
+                recipeItems: {
+                  select: {
+                    amount: true,
+                    ingredient: { select: { quantity: true, unit: true } },
+                  },
+                },
+              }
+            : {}),
+        },
+      },
+    },
+  });
+
+  type ProductRow = (typeof categories)[0]["products"][0] & {
+    recipeItems?: {
+      amount: number;
+      ingredient: { quantity: number; unit: string };
+    }[];
+  };
+
+  const mapProduct = (p: ProductRow): PublicMenuProduct => {
     const cart = resolveProductCart(p, variantsEnabled);
     return {
       id: p.id,
@@ -86,7 +107,8 @@ export async function loadPublicMenuData(businessId: string): Promise<PublicMenu
       vegetarian: p.aiApproved ? p.vegetarian : false,
       glutenFree: p.aiApproved ? p.glutenFree : false,
       description: p.description,
-      outOfStock: stockEnabled && isOutOfStock(p),
+      outOfStock:
+        stockEnabled && isOutOfStock({ recipeItems: p.recipeItems ?? [] }),
       variants: cart.variants,
       defaultCartKey: cart.defaultCartKey,
       displayPriceKurus: cart.displayPriceKurus,
@@ -103,7 +125,7 @@ export async function loadPublicMenuData(businessId: string): Promise<PublicMenu
       description: c.description,
       imageUrl: c.imageUrl ? toDisplayImageUrl(c.imageUrl) : null,
       icon: c.icon,
-      products: c.products.map(mapProduct),
+      products: c.products.map((p) => mapProduct(p as ProductRow)),
     }));
 
   const allProducts = visibleCategories.flatMap((c) => c.products);
@@ -112,7 +134,7 @@ export async function loadPublicMenuData(businessId: string): Promise<PublicMenu
   let menuCategories = visibleCategories;
   if (bestsellersEnabled) {
     const top = await getTopSellingProducts(businessId, 5);
-    const bestsellerProducts = top.map((p) => mapProduct(p));
+    const bestsellerProducts = top.map((p) => mapProduct(p as ProductRow));
     if (bestsellerProducts.length > 0) {
       menuCategories = [
         {
@@ -130,4 +152,13 @@ export async function loadPublicMenuData(businessId: string): Promise<PublicMenu
   }
 
   return { menuCategories, dailyProduct, suggestionEnabled, loyaltyEnabled };
+}
+
+/** Müşteri menüsü — kısa süreli cache (katalog ağırlıklı). */
+export function loadPublicMenuData(businessId: string): Promise<PublicMenuData> {
+  return unstable_cache(
+    () => loadPublicMenuDataUncached(businessId),
+    ["public-menu", businessId],
+    { revalidate: 45, tags: [`menu:${businessId}`] }
+  )();
 }
