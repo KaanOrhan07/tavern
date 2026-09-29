@@ -73,6 +73,7 @@ export function MenuWelcome({
   onSelectCategory: (categoryId: string) => void;
 }) {
   const [mapsUrl, setMapsUrl] = useState<string | null>(null);
+  const [socials, setSocials] = useState<{ label: string; icon: string; href: string }[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,17 +81,25 @@ export function MenuWelcome({
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data?.business) return;
-        const { latitude, longitude, address } = data.business;
-        if (latitude != null && longitude != null) {
+        const b = data.business;
+        if (b.mapsUrl) {
+          setMapsUrl(b.mapsUrl);
+        } else if (b.address) {
           setMapsUrl(
-            `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
-          );
-        } else if (address) {
-          setMapsUrl(
-            `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`
+            `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(b.address)}`
           );
         }
-      });
+        const links = [
+          { label: "Instagram", icon: "📸", href: b.instagramUrl },
+          { label: "TikTok", icon: "🎵", href: b.tiktokUrl },
+          { label: "YouTube", icon: "▶", href: b.youtubeUrl },
+          { label: "Facebook", icon: "f", href: b.facebookUrl },
+          { label: "LinkedIn", icon: "in", href: b.linkedinUrl },
+          { label: "Web sitesi", icon: "🌐", href: b.websiteUrl },
+        ].filter((l): l is { label: string; icon: string; href: string } => Boolean(l.href));
+        setSocials(links);
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -122,13 +131,23 @@ export function MenuWelcome({
             priority
             unoptimized={resolvedBanner.startsWith("/api/")}
           />
+        ) : resolvedLogo ? (
+          // Banner yoksa logo bulanık arka plan olarak kullanılır
+          <Image
+            src={resolvedLogo}
+            alt=""
+            fill
+            className="scale-125 object-cover blur-2xl brightness-[0.35]"
+            sizes="100vw"
+            unoptimized={resolvedLogo.startsWith("/api/")}
+          />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-b from-ink-soft via-ink to-ink" />
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-ink/40 via-ink/70 to-ink" />
       </div>
 
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-5 pt-[max(2.5rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-5 pt-[max(4.25rem,calc(env(safe-area-inset-top)+3.5rem))] pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         <div className="flex shrink-0 flex-col items-center text-center opacity-0 [animation:menu-fade-up_0.5s_ease-out_forwards]">
           {resolvedLogo ? (
             <Image
@@ -167,15 +186,40 @@ export function MenuWelcome({
               İşletme Bilgisi
             </a>
           </div>
+          {socials.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              {socials.map((s) => (
+                <a
+                  key={s.label}
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={s.label}
+                  title={s.label}
+                  className="flex h-9 min-w-9 items-center justify-center rounded-full border border-gold/30 bg-ink/50 px-2.5 text-xs font-semibold text-gold backdrop-blur-md transition-colors hover:bg-ink/70"
+                >
+                  {s.icon}
+                </a>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="mt-5 grid min-h-0 flex-1 grid-cols-2 content-start gap-2.5 overflow-y-auto overscroll-contain pb-3 opacity-0 [animation:menu-fade-up_0.65s_ease-out_forwards] [-webkit-overflow-scrolling:touch]">
+        <div className="mt-5 grid min-h-0 flex-1 grid-cols-2 content-start gap-2.5 overflow-y-auto overscroll-contain pb-3 opacity-0 [animation:menu-fade-up_0.65s_ease-out_forwards] [-webkit-overflow-scrolling:touch] sm:grid-cols-3">
+          {categories.length === 0 && (
+            <p className="col-span-full mt-6 text-center text-sm text-cream-dim">
+              Menü yakında burada olacak.
+            </p>
+          )}
+          {/* Tek kategori varsa kart tam genişlikte, çoklu kategoride gerçek grid */}
           {categories.map((category, index) => (
             <button
               key={category.id}
               type="button"
               onClick={() => onSelectCategory(category.id)}
-              className="flex min-h-[4.75rem] flex-col items-center justify-center gap-1.5 rounded-2xl border border-gold/25 bg-ink/55 px-2.5 py-3 text-center backdrop-blur-md transition-colors active:bg-ink/70 cursor-pointer"
+              className={`flex min-h-[4.75rem] flex-col items-center justify-center gap-1.5 rounded-2xl border border-gold/25 bg-ink/55 px-2.5 py-3 text-center backdrop-blur-md transition-colors active:bg-ink/70 cursor-pointer ${
+                categories.length === 1 ? "col-span-full" : ""
+              }`}
             >
               <CategoryTileVisual category={category} index={index} />
               <span className="text-sm font-medium leading-snug">{category.name}</span>

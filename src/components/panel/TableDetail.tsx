@@ -17,6 +17,15 @@ type OrderItem = {
   quantity: number;
   paidQuantity: number;
   delivered: boolean;
+  status: "PENDING" | "PREPARING" | "READY" | "DELIVERED" | "CANCELLED";
+};
+
+const STATUS_BADGE: Record<OrderItem["status"], { label: string; tone: "warn" | "gold" | "ok" | "neutral" | "danger" }> = {
+  PENDING: { label: "Bekliyor", tone: "warn" },
+  PREPARING: { label: "Hazırlanıyor", tone: "gold" },
+  READY: { label: "Hazır", tone: "ok" },
+  DELIVERED: { label: "Teslim edildi", tone: "neutral" },
+  CANCELLED: { label: "İptal", tone: "danger" },
 };
 
 type MenuCategory = {
@@ -24,6 +33,14 @@ type MenuCategory = {
   name: string;
   products: { id: string; name: string; priceKurus: number; imageUrl: string }[];
 };
+
+function tierEmoji(name: string) {
+  const n = name.toLowerCase();
+  if (n.includes("altın") || n.includes("altin") || n.includes("gold")) return "🥇";
+  if (n.includes("gümüş") || n.includes("gumus") || n.includes("silver")) return "🥈";
+  if (n.includes("bronz") || n.includes("bronze")) return "🥉";
+  return "⭐";
+}
 
 export function TableDetail({
   slug,
@@ -47,6 +64,7 @@ export function TableDetail({
   const [items, setItems] = useState<OrderItem[] | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [loyaltyDiscountKurus, setLoyaltyDiscountKurus] = useState(0);
+  const [vip, setVip] = useState<{ tierName: string | null; points: number; visits: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
@@ -69,10 +87,11 @@ export function TableDetail({
       setItems(data.order?.items ?? []);
       setOrderId(data.order?.id ?? null);
       setLoyaltyDiscountKurus(data.order?.loyaltyDiscountKurus ?? 0);
+      setVip(data.vip ?? null);
     }
   }, [tableId]);
 
-  useVisibleInterval(load, 12_000);
+  useVisibleInterval(load, 8_000);
 
   useEffect(() => {
     if (!showQr || qrDataUrl) return;
@@ -161,6 +180,16 @@ export function TableDetail({
   // --- Teslim / silme ---
 
   async function toggleDelivered(item: OrderItem) {
+    // Mutfak henüz hazır demediyse sert engel yok, ama onay istenir (manuel düzeltme ihtiyacı olabilir)
+    if (
+      !item.delivered &&
+      item.status !== "READY" &&
+      !confirm(
+        `"${item.productName}" mutfakta henüz hazır değil (${STATUS_BADGE[item.status].label}). Yine de teslim edildi olarak işaretlensin mi?`
+      )
+    ) {
+      return;
+    }
     await fetch(`/api/panel/orders/items/${item.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -263,6 +292,13 @@ export function TableDetail({
         </p>
       )}
 
+      {vip && (
+        <p className="rounded-lg border border-gold/40 bg-gold/10 px-4 py-2.5 text-sm text-gold">
+          {vip.tierName ? tierEmoji(vip.tierName) + " " + vip.tierName : "⭐ Kayıtlı müşteri"} · {vip.visits}. ziyaret ·{" "}
+          {vip.points} puan
+        </p>
+      )}
+
       {/* Sipariş kalemleri */}
       {items === null ? (
         <p className="text-sm text-cream-dim">Yükleniyor...</p>
@@ -284,6 +320,9 @@ export function TableDetail({
                       <p className="truncate font-medium">
                         {item.quantity} × {item.productName}
                       </p>
+                      <div className="mt-1">
+                        <Badge tone={STATUS_BADGE[item.status].tone}>{STATUS_BADGE[item.status].label}</Badge>
+                      </div>
                       <p className="mt-0.5 text-xs text-cream-dim">
                         {formatKurus(item.unitKurus)} / adet
                         {item.paidQuantity > 0 && (

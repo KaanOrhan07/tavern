@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { loadPublicMenuData } from "@/lib/public-menu-data";
+import { geoAccessOk } from "@/lib/geofence";
+import { GeoGate } from "@/components/musteri/GeoGate";
 import { CustomerTable } from "@/components/musteri/CustomerTable";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +20,10 @@ export default async function CustomerTablePage({
   });
   if (!table || table.business.slug !== isletmeSlug || !table.business.active) {
     notFound();
+  }
+
+  if (!(await geoAccessOk(table.businessId, isletmeSlug))) {
+    return <GeoGate slug={isletmeSlug} businessName={table.business.name} />;
   }
 
   const menuData = await loadPublicMenuData(table.businessId);

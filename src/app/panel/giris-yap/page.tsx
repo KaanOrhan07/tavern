@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { getCustomerSession } from "@/lib/customer-auth";
+import { safeNextPath } from "@/lib/safe-redirect";
 import { CustomerLoginForm } from "@/components/musteri/CustomerAuthForms";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export default async function PanelMusteriGirisPage({
 }) {
   const session = await getCustomerSession();
   const { next } = await searchParams;
-  const nextPath = next && next.startsWith("/") ? next : "/panel/hesabim";
+  const nextPath = safeNextPath(next);
   if (session) redirect(nextPath);
 
   return (

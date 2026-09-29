@@ -8,7 +8,16 @@
     "theme": "Tema",
     "campaigns": "Campañas",
     "customers": "Clientes",
-    "reports": "Informes"
+    "reports": "Informes",
+    "tables": "Mesas",
+    "menu": "Menú",
+    "stock": "Inventario",
+    "staff": "Personal",
+    "dayEnd": "Cierre del día",
+    "requests": "Solicitudes",
+    "appointments": "Citas",
+    "services": "Servicios",
+    "locales": "Idiomas"
   },
   "common": {
     "save": "Guardar",
@@ -16,7 +25,15 @@
     "delete": "Eliminar",
     "edit": "Editar",
     "loading": "Cargando...",
-    "search": "Buscar"
+    "search": "Buscar",
+    "add": "Añadir",
+    "error": "Se produjo un error",
+    "success": "Correcto",
+    "confirm": "Confirmar",
+    "back": "Atrás",
+    "logout": "Cerrar sesión",
+    "noResults": "No se encontraron resultados",
+    "language": "Idioma"
   },
   "appointmentStatus": {
     "PENDING_BUSINESS_APPROVAL": "Pendiente de aprobación",

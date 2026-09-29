@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { clientIp, rateLimitAsync } from "@/lib/rate-limit";
-import { hashPassword, hashResetToken, validateOwnerPassword } from "@/lib/password";
+import { buildPasswordFields, hashResetToken, validateOwnerPassword } from "@/lib/password";
 import { writeAuditLog } from "@/lib/audit";
 
 const schema = z.object({
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     prisma.user.update({
       where: { id: record.userId },
       data: {
-        passwordHash: await hashPassword(body.data.password),
+        ...(await buildPasswordFields(body.data.password)),
         sessionVersion: { increment: 1 },
       },
     }),

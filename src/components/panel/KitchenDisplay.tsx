@@ -14,11 +14,12 @@ type KitchenItem = {
   productName: string;
   quantity: number;
   note: string | null;
+  status: "PENDING" | "PREPARING" | "READY" | "DELIVERED" | "CANCELLED";
   createdAt: string;
   preparedAt: string | null;
 };
 
-const POLL_MS = 12_000;
+const POLL_MS = 8_000;
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("tr-TR", {
@@ -31,25 +32,31 @@ function KitchenCard({
   item,
   done,
   onMarkPrepared,
+  onStartPreparing,
   marking,
 }: {
   item: KitchenItem;
   done?: boolean;
   onMarkPrepared?: () => void;
+  onStartPreparing?: () => void;
   marking?: boolean;
 }) {
+  const preparing = item.status === "PREPARING";
   return (
     <div
       className={`rounded-xl border p-4 ${
         done
           ? "border-ok/30 bg-ok/5 opacity-80"
-          : "border-gold/40 bg-gold/5 shadow-[0_0_0_1px_rgba(212,168,87,0.08)]"
+          : preparing
+            ? "border-warn/60 bg-warn/10"
+            : "border-gold/40 bg-gold/5 shadow-[0_0_0_1px_rgba(212,168,87,0.08)]"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-gold">
             {item.tableName}
+            {preparing && <span className="ms-2 rounded-full bg-warn/20 px-2 py-0.5 text-[10px] text-warn">Hazırlanıyor</span>}
           </p>
           <p className="mt-1 text-lg font-semibold leading-snug">{item.productName}</p>
           <p className="mt-1 text-sm text-cream-dim">
@@ -64,7 +71,18 @@ function KitchenCard({
             <p className="mt-2 text-xs text-ok">Hazır · {formatTime(item.preparedAt)}</p>
           )}
         </div>
-        {!done && onMarkPrepared && (
+        {!done && !preparing && onStartPreparing && (
+          <button
+            type="button"
+            onClick={onStartPreparing}
+            disabled={marking}
+            aria-label="Hazırlanmaya başla"
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-warn bg-warn/15 text-2xl text-warn transition-colors hover:bg-warn/25 disabled:opacity-50 cursor-pointer"
+          >
+            ▶
+          </button>
+        )}
+        {!done && preparing && onMarkPrepared && (
           <button
             type="button"
             onClick={onMarkPrepared}
@@ -147,12 +165,12 @@ export function KitchenDisplay() {
 
   useVisibleInterval(load, POLL_MS);
 
-  async function markPrepared(itemId: string) {
+  async function setItemStatus(itemId: string, status: "PREPARING" | "READY") {
     setMarkingId(itemId);
     const res = await fetch(`/api/panel/orders/items/${itemId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prepared: true }),
+      body: JSON.stringify({ status }),
     });
     if (res.ok) await load();
     else setError("İşaretleme başarısız");
@@ -164,7 +182,7 @@ export function KitchenDisplay() {
       <div>
         <h1 className="text-xl font-semibold">Adisyon</h1>
         <p className="mt-1 text-sm text-cream-dim">
-          Yeni siparişler burada görünür. Hazırlayınca tikleyin — teslim ayrı adımdır.
+          Yeni siparişler burada görünür. ▶ ile hazırlamaya başlayın, bitince ✓ ile hazır işaretleyin — teslim ayrı adımdır (garson).
         </p>
         {error && <p className="mt-2 text-sm text-danger">{error}</p>}
       </div>
@@ -188,7 +206,8 @@ export function KitchenDisplay() {
               <KitchenCard
                 key={item.id}
                 item={item}
-                onMarkPrepared={() => markPrepared(item.id)}
+                onStartPreparing={() => setItemStatus(item.id, "PREPARING")}
+                onMarkPrepared={() => setItemStatus(item.id, "READY")}
                 marking={markingId === item.id}
               />
             ))}

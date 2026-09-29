@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
+  destroyAdminSession,
   destroyPanelSession,
   getAdminSession,
   getPanelSession,
@@ -12,10 +13,34 @@ import type { Business } from "@/generated/prisma/client";
 export type PanelContext = { session: PanelSession; business: Business };
 export type AdminContext = { session: AdminSession };
 
-export async function requireAdmin(): Promise<AdminContext | NextResponse> {
+/**
+ * Admin API koruması. `superOnly`: sadece env ADMIN_KEY ile giren ana admin.
+ * Alt adminlerde DB'deki aktiflik + sessionVersion her istekte doğrulanır.
+ */
+export async function requireAdmin(options?: {
+  superOnly?: boolean;
+}): Promise<AdminContext | NextResponse> {
   const session = await getAdminSession();
   if (!session) {
     return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
+  }
+  if (session.level === "sub") {
+    const admin = session.adminUserId
+      ? await prisma.adminUser.findUnique({
+          where: { id: session.adminUserId },
+          select: { active: true, sessionVersion: true },
+        })
+      : null;
+    if (!admin || !admin.active || admin.sessionVersion !== (session.sessionVersion ?? 1)) {
+      await destroyAdminSession();
+      return NextResponse.json({ error: "Oturum geçersiz" }, { status: 401 });
+    }
+  }
+  if (options?.superOnly && session.level !== "super") {
+    return NextResponse.json(
+      { error: "Bu işlem yalnızca ana admin tarafından yapılabilir" },
+      { status: 403 }
+    );
   }
   return { session };
 }

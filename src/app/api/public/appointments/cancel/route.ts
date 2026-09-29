@@ -3,13 +3,13 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { CUSTOMER_CANCELLABLE } from "@/lib/appointment-status";
 import { transitionAppointment } from "@/lib/appointments";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimitAsync } from "@/lib/rate-limit";
 
 const schema = z.object({ cancelToken: z.string().min(1) });
 
 export async function POST(request: Request) {
   const ip = clientIp(request);
-  const limited = rateLimit(`appointment-cancel:${ip}`, { limit: 30, windowMs: 15 * 60 * 1000 });
+  const limited = await rateLimitAsync(`appointment-cancel:${ip}`, { limit: 30, windowMs: 15 * 60 * 1000 });
   if (!limited.ok) {
     return NextResponse.json({ error: "Çok fazla istek" }, { status: 429 });
   }

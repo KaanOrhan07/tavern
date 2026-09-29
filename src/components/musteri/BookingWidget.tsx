@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button, Card, Input, Label, Select } from "@/components/ui";
 import { formatKurus } from "@/lib/utils";
-import { DEFAULT_BUSINESS_TZ, todayYmdInTz } from "@/lib/business-timezone";
+import { DEFAULT_BUSINESS_TZ, addDaysYmd, todayYmdInTz } from "@/lib/business-timezone";
+import { weekdayOfYmd } from "@/lib/appointments-shared";
 import { CustomerAccountChip } from "@/components/musteri/CustomerAccountChip";
 
 type Service = { id: string; name: string; durationMinutes: number; priceKurus: number };
@@ -17,6 +18,7 @@ export function BookingWidget({ slug }: { slug: string }) {
   const [serviceId, setServiceId] = useState("");
   const [staffId, setStaffId] = useState("");
   const [date, setDate] = useState("");
+  const [workDays, setWorkDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 0]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
@@ -33,6 +35,7 @@ export function BookingWidget({ slug }: { slug: string }) {
         if (data.ok) {
           setServices(data.services);
           setStaff(data.staff);
+          if (Array.isArray(data.workDays)) setWorkDays(data.workDays);
           if (data.services[0]) setServiceId(data.services[0].id);
           if (data.staff[0]) setStaffId(data.staff[0].id);
         }
@@ -188,16 +191,37 @@ export function BookingWidget({ slug }: { slug: string }) {
 
       <div>
         <Label>Tarih</Label>
-        <Input
-          type="date"
-          min={today}
-          value={date}
-          onChange={(e) => {
-            setDate(e.target.value);
-            setSelectedSlot(null);
-          }}
-          required
-        />
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {Array.from({ length: 21 }, (_, i) => addDaysYmd(today, i)).map((ymd) => {
+            const open = workDays.includes(weekdayOfYmd(ymd));
+            const [y, m, d] = ymd.split("-").map(Number);
+            const dt = new Date(Date.UTC(y, m - 1, d));
+            const dow = new Intl.DateTimeFormat("tr-TR", { weekday: "short", timeZone: "UTC" }).format(dt);
+            return (
+              <button
+                key={ymd}
+                type="button"
+                disabled={!open}
+                title={open ? undefined : "Bu gün kapalı"}
+                onClick={() => {
+                  setDate(ymd);
+                  setSelectedSlot(null);
+                }}
+                className={`flex min-w-14 shrink-0 flex-col items-center rounded-lg border px-2 py-2 text-xs ${
+                  date === ymd
+                    ? "border-gold bg-gold text-ink"
+                    : open
+                      ? "border-ink-line hover:border-gold-dark cursor-pointer"
+                      : "border-ink-line/40 text-cream-dim/40 line-through cursor-not-allowed"
+                }`}
+              >
+                <span>{dow}</span>
+                <span className="text-base font-semibold">{d}</span>
+              </button>
+            );
+          })}
+        </div>
+        {!date && <p className="text-[11px] text-cream-dim">Randevu için bir gün seçin. Üstü çizili günler işletme kapalı.</p>}
       </div>
 
       {date && (

@@ -13,13 +13,29 @@ import type { PanelSession } from "@/lib/auth";
 import { earnLoyaltyPoints } from "@/lib/loyalty";
 import { isFeatureEnabled } from "@/lib/features";
 import { upsertCustomerBusinessStats } from "@/lib/customer-stats";
+import { sendSms } from "@/lib/sms";
+import { ALL_WORK_DAYS, weekdayOfYmd } from "@/lib/appointments-shared";
+
+export { ALL_WORK_DAYS, weekdayOfYmd };
 
 export type BarberSettingsData = {
   slotMinutes: number;
   openTime: string;
   closeTime: string;
   responseTimeoutMinutes: number;
+  /** Çalışılan günler: 0=Pazar … 6=Cumartesi */
+  workDays: number[];
 };
+
+function formatWhen(date: Date): string {
+  return new Intl.DateTimeFormat("tr-TR", {
+    timeZone: DEFAULT_BUSINESS_TZ,
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
 
 function parseHm(time: string): number {
   const [h, m] = time.split(":").map(Number);
@@ -33,6 +49,7 @@ export async function getBarberSettings(businessId: string): Promise<BarberSetti
     openTime: row?.openTime ?? "09:00",
     closeTime: row?.closeTime ?? "20:00",
     responseTimeoutMinutes: row?.responseTimeoutMinutes ?? 60,
+    workDays: row?.workDays?.length ? row.workDays : ALL_WORK_DAYS,
   };
 }
 
@@ -179,6 +196,8 @@ export async function getAvailableSlots(params: {
   ]);
 
   if (!service) return [];
+  // Kapalı gün: UI engeline ek olarak sunucu tarafında da uygulanır
+  if (!settings.workDays.includes(weekdayOfYmd(params.date))) return [];
   if (exceptions.some((e) => e.allDay)) return [];
 
   const openMin = parseHm(settings.openTime);
@@ -253,7 +272,11 @@ type TransitionParams = {
 export async function transitionAppointment(params: TransitionParams) {
   const appointment = await prisma.appointment.findFirst({
     where: { id: params.appointmentId, businessId: params.businessId },
-    include: { service: true, staff: { select: { name: true } } },
+    include: {
+      service: true,
+      staff: { select: { name: true } },
+      business: { select: { name: true } },
+    },
   });
   if (!appointment) throw new Error("Randevu bulunamadı");
   if (!canTransition(appointment.status, params.toStatus)) {
@@ -287,6 +310,52 @@ export async function transitionAppointment(params: TransitionParams) {
 
   if (params.toStatus === "APPROVED" || params.toStatus === "RESCHEDULE_ACCEPTED") {
     data.expiresAt = null;
+  }
+
+  // Çift rezervasyon koruması: bekleyen talepler slotu bloklamadığı için aynı saate birden fazla
+  // talep gelebilir; kesinleşme (onay / alternatif saat) anında personelin çakışması kontrol edilir.
+  if (
+    params.toStatus === "APPROVED" ||
+    params.toStatus === "RESCHEDULE_ACCEPTED" ||
+    params.toStatus === "RESCHEDULE_PROPOSED"
+  ) {
+    const useProposed =
+      params.toStatus === "RESCHEDULE_PROPOSED"
+        ? false
+        : (params.toStatus === "RESCHEDULE_ACCEPTED" || params.applyProposedTimes) &&
+          appointment.proposedStartAt &&
+          appointment.proposedEndAt;
+    const effStart =
+      params.toStatus === "RESCHEDULE_PROPOSED"
+        ? params.proposedStartAt!
+        : useProposed
+          ? appointment.proposedStartAt!
+          : appointment.startAt;
+    const effEnd =
+      params.toStatus === "RESCHEDULE_PROPOSED"
+        ? params.proposedEndAt!
+        : useProposed
+          ? appointment.proposedEndAt!
+          : appointment.endAt;
+    if (params.toStatus === "RESCHEDULE_PROPOSED" && (!effStart || !effEnd)) {
+      throw new Error("Alternatif saat gerekli");
+    }
+    const clash = await prisma.appointment.findFirst({
+      where: {
+        businessId: params.businessId,
+        staffId: appointment.staffId,
+        id: { not: appointment.id },
+        status: { in: CONFLICT_STATUSES },
+        startAt: { lt: effEnd },
+        endAt: { gt: effStart },
+      },
+      select: { customerName: true, startAt: true },
+    });
+    if (clash) {
+      throw new Error(
+        `Bu saatte ${appointment.staff.name} için başka bir onaylı randevu var (${clash.customerName}, ${formatWhen(clash.startAt)}). Reddedin veya alternatif saat önerin.`
+      );
+    }
   }
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -363,9 +432,27 @@ export async function transitionAppointment(params: TransitionParams) {
       data: {
         businessId: params.businessId,
         type: notifType,
+        targetUserId: appointment.staffId,
         message: `${appointment.staff.name}: ${appointment.service.name} — ${appointment.customerName} → ${params.toStatus}`,
       },
     });
+  }
+
+  // Müşteriye SMS: yalnızca işletme/personel/sistem kaynaklı değişimlerde (müşterinin kendi eylemi için değil)
+  if (params.changedByRole !== "customer") {
+    const who = `${appointment.business.name} — ${appointment.staff.name}`;
+    const when = formatWhen(updated.startAt);
+    let sms: string | null = null;
+    if (params.toStatus === "APPROVED" || params.toStatus === "RESCHEDULE_ACCEPTED") {
+      sms = `Randevunuz onaylanmıştır. ${who} — ${when}`;
+    } else if (params.toStatus === "REJECTED") {
+      sms = `Randevunuz reddedilmiştir. Farklı bir saat için randevu almayı deneyiniz. ${who}`;
+    } else if (params.toStatus === "RESCHEDULE_PROPOSED" && params.proposedStartAt) {
+      sms = `${appointment.business.name} randevunuz için yeni bir saat önerdi: ${formatWhen(params.proposedStartAt)} (${appointment.staff.name}). Yanıtlamak için randevu sayfanızı açın.`;
+    } else if (params.toStatus === "CANCELLED_BY_BUSINESS") {
+      sms = `Randevunuz işletme tarafından iptal edilmiştir. ${who} — ${when}`;
+    }
+    if (sms) await sendSms(appointment.customerPhone, sms, "transactional");
   }
 
   return updated;
@@ -379,7 +466,13 @@ export async function expirePendingAppointments() {
       status: { in: ["PENDING_BUSINESS_APPROVAL", "RESCHEDULE_PROPOSED"] },
       expiresAt: { lte: now },
     },
-    select: { id: true, businessId: true, status: true },
+    select: {
+      id: true,
+      businessId: true,
+      status: true,
+      customerPhone: true,
+      business: { select: { name: true } },
+    },
   });
   if (pending.length === 0) return 0;
 
@@ -406,29 +499,58 @@ export async function expirePendingAppointments() {
       })),
     }),
   ]);
+  await Promise.allSettled(
+    pending.map((a) =>
+      sendSms(
+        a.customerPhone,
+        `${a.business.name} randevu talebinize zamanında yanıt veremedi. Farklı bir saat için tekrar randevu almayı deneyiniz.`,
+        "transactional"
+      )
+    )
+  );
   return pending.length;
 }
 
-/** 30 dk kala hatırlatma (panel-içi bildirim). */
+/**
+ * Randevuya 1 saat kala MÜŞTERİYE SMS + ilgili personele panel bildirimi.
+ * Cron her 5 dakikada çalışır; `reminderSentAt` ile tekrar gönderim engellenir.
+ * Son dakika alınan randevular (<65 dk önceden onaylanan) için ayrıca hatırlatma yapılmaz.
+ */
 export async function sendAppointmentReminders() {
   const now = new Date();
-  const in30 = new Date(now.getTime() + 30 * 60_000);
-  const in31 = new Date(now.getTime() + 31 * 60_000);
+  const in60 = new Date(now.getTime() + 60 * 60_000);
 
-  const upcoming = await prisma.appointment.findMany({
+  const candidates = await prisma.appointment.findMany({
     where: {
       status: { in: CONFLICT_STATUSES },
       reminderSentAt: null,
-      startAt: { gte: in30, lt: in31 },
+      startAt: { gt: now, lte: in60 },
     },
     select: {
       id: true,
       businessId: true,
+      staffId: true,
       customerName: true,
+      customerPhone: true,
+      startAt: true,
+      createdAt: true,
+      business: { select: { name: true } },
       service: { select: { name: true } },
       staff: { select: { name: true } },
     },
   });
+  const upcoming = candidates.filter(
+    (a) => a.startAt.getTime() - a.createdAt.getTime() >= 65 * 60_000
+  );
+  const skipped = candidates.filter((a) => !upcoming.includes(a));
+
+  // Son dakika kayıtlarını da işaretle ki her turda tekrar taranmasınlar
+  if (skipped.length) {
+    await prisma.appointment.updateMany({
+      where: { id: { in: skipped.map((a) => a.id) } },
+      data: { reminderSentAt: now },
+    });
+  }
   if (upcoming.length === 0) return 0;
 
   await prisma.$transaction([
@@ -436,7 +558,8 @@ export async function sendAppointmentReminders() {
       data: upcoming.map((a) => ({
         businessId: a.businessId,
         type: "APPOINTMENT_REMINDER" as const,
-        message: `30 dk: ${a.staff.name} — ${a.service.name} (${a.customerName})`,
+        targetUserId: a.staffId,
+        message: `1 saat sonra: ${a.service.name} — ${a.customerName} (${formatWhen(a.startAt)})`,
       })),
     }),
     prisma.appointment.updateMany({
@@ -444,5 +567,15 @@ export async function sendAppointmentReminders() {
       data: { reminderSentAt: now },
     }),
   ]);
+
+  await Promise.allSettled(
+    upcoming.map((a) =>
+      sendSms(
+        a.customerPhone,
+        `${a.business.name}'a 1 saat sonra randevunuz var — ${a.staff.name}, ${formatWhen(a.startAt).split(" ").slice(-1)[0]}`,
+        "transactional"
+      )
+    )
+  );
   return upcoming.length;
 }

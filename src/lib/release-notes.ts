@@ -1,5 +1,20 @@
 export const RELEASE_NOTES = [
   {
+    version: "2.2.1",
+    date: "Eylül 2026",
+    highlights: [
+      "Çok seviyeli admin: ana admin (env key) + alt adminler (key + şifre), admin işlem logları, şifrelenmiş işletme şifresi görüntüleme",
+      "Groq API key'i panelden değiştirilebilir (deploy gerekmez), geçersiz yedek AI modelleri düzeltildi",
+      "Netgsm SMS altyapısı: OTP, randevu onay/red, randevuya 1 saat kala müşteri hatırlatması",
+      "Randevular: Onay Bekleyenler / Bugünün Programı / Yaklaşan + haftalık takvim, çalışma günleri, personel yalnızca kendi randevularını görür",
+      "Giriş ekranında rol seçimi, 'Beni hatırla', müşteri PIN sıfırlama (SMS)",
+      "Google Maps linkiyle konum, sosyal medya linkleri, 100 m QR menü konum kısıtı",
+      "Ödeme penceresi takibi (3 gün önce admin, pencere açılınca işletme SMS + panel bildirimi)",
+      "Adisyon: Hazırlanıyor adımı, garson ekranında durum rozetleri, VIP müşteri rozeti, günlük rapor PDF",
+      "Güvenlik ve hata düzeltmeleri: oturumsuz şifre sıfırlama, gün sonu saat dilimi, açık yönlendirme, OTP brute-force sınırı",
+    ],
+  },
+  {
     version: "2.0.0",
     date: "25 Temmuz 2026",
     highlights: [

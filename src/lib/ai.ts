@@ -1,5 +1,13 @@
+import { getGroqApiKey } from "@/lib/settings";
+
 const DEFAULT_MODEL = "llama-3.3-70b-versatile";
-const FALLBACK_MODELS = ["openai/gpt-oss-120b", "qwen/qwen3.6-27b"];
+// Groq güncel model kimlikleri (2.2.1: geçersiz "qwen/qwen3.6-27b" kaldırıldı)
+const FALLBACK_MODELS = [
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "qwen/qwen3-32b",
+  "llama-3.1-8b-instant",
+];
 const ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -16,6 +24,8 @@ function modelCandidates(): string[] {
 }
 
 function shouldTryNextModel(status: number, body: string): boolean {
+  // Kota/aşırı yük: bir sonraki modele geç
+  if (status === 429 || status >= 500) return true;
   if (status !== 400 && status !== 404) return false;
   const lower = body.toLowerCase();
   return (
@@ -34,8 +44,8 @@ export async function askGroqJson<T>(system: string, user: string): Promise<T> {
 }
 
 async function askJson<T>(system: string, user: string): Promise<T> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY tanımlı değil");
+  const apiKey = await getGroqApiKey();
+  if (!apiKey) throw new Error("Groq API key tanımlı değil (Admin → Sistem Ayarları)");
 
   let lastError = "Groq API hatası";
 

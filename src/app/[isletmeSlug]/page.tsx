@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { defaultCustomerPath, isBarberBusiness } from "@/lib/business-modules";
 import { loadPublicMenuData } from "@/lib/public-menu-data";
+import { geoAccessOk } from "@/lib/geofence";
+import { GeoGate } from "@/components/musteri/GeoGate";
 import { CustomerMenuApp } from "@/components/musteri/CustomerMenuApp";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +23,10 @@ export default async function BusinessLandingPage({
 
   if (isBarberBusiness(business.type.key)) {
     redirect(defaultCustomerPath(isletmeSlug, business.type.key));
+  }
+
+  if (!(await geoAccessOk(business.id, isletmeSlug))) {
+    return <GeoGate slug={isletmeSlug} businessName={business.name} />;
   }
 
   const [menuData, localeSettings] = await Promise.all([

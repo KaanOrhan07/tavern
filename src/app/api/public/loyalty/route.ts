@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { isFeatureEnabled } from "@/lib/features";
 import { getLoyaltyBalance, normalizePhone } from "@/lib/loyalty";
+import { clientIp, rateLimitAsync } from "@/lib/rate-limit";
 
 const querySchema = z.object({
   slug: z.string().min(1),
@@ -10,6 +11,13 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
+  // Telefon numarasıyla puan sorgulama: numara tarama (enumeration) sınırı
+  const limited = await rateLimitAsync(`loyalty-balance:${clientIp(request)}`, {
+    limit: 20,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!limited.ok) return NextResponse.json({ error: "Çok fazla istek" }, { status: 429 });
+
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
     slug: url.searchParams.get("slug"),

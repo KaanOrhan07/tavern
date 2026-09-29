@@ -9,6 +9,9 @@ import {
   getIdempotencyKey,
 } from "@/lib/idempotency";
 import { writeAuditLog } from "@/lib/audit";
+import { checkOrderGeo } from "@/lib/geofence";
+import { getCustomerSession } from "@/lib/customer-auth";
+import { normalizePhone } from "@/lib/loyalty";
 
 const itemSchema = z.object({
   productId: z.string().min(1),
@@ -50,6 +53,13 @@ export async function POST(request: Request) {
   if (!table || !table.business.active) {
     return NextResponse.json({ error: "Masa bulunamadı" }, { status: 404 });
   }
+  const geo = await checkOrderGeo(table.businessId, table.business.slug, { requireFence: true });
+  if (!geo.ok) {
+    return NextResponse.json(
+      { error: geo.message, geoRequired: true, reason: geo.reason },
+      { status: 403 }
+    );
+  }
   if (table.business.orderMode !== "CUSTOMER_QR") {
     return NextResponse.json(
       { error: "Bu işletmede sipariş garson aracılığıyla alınır" },
@@ -66,6 +76,19 @@ export async function POST(request: Request) {
       { error: "Çok fazla istek, lütfen bekleyin" },
       { status: 429, headers: { "Retry-After": String(tableLimited.retryAfterSec) } }
     );
+  }
+
+  // Puan kullanımı yalnızca giriş yapmış (OTP ile doğrulanmış) müşterinin KENDİ numarasında mümkündür.
+  // Aksi halde telefon numarasını bilen herkes başkasının puanını harcayabilirdi.
+  if (body.data.redeemLoyalty) {
+    const session = await getCustomerSession();
+    const phone = body.data.customerPhone ? normalizePhone(body.data.customerPhone) : null;
+    if (!session || !phone || session.phone !== phone) {
+      return NextResponse.json(
+        { error: "Puan kullanmak için hesabınıza giriş yapmalısınız" },
+        { status: 403 }
+      );
+    }
   }
 
   const idemKey = getIdempotencyKey(request);

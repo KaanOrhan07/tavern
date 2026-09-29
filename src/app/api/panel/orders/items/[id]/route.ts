@@ -66,6 +66,8 @@ export async function PATCH(
     data.delivered = body.data.delivered;
     data.deliveredAt = body.data.delivered ? now : null;
     if (body.data.delivered) data.status = "DELIVERED";
+    // Teslim geri alınırsa durum "Hazır"a döner (önceden DELIVERED'da takılı kalıyordu)
+    else if (body.data.status === undefined && body.data.prepared === undefined) data.status = "READY";
   }
   if (body.data.prepared !== undefined) {
     data.prepared = body.data.prepared;

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { geoAccessOk } from "@/lib/geofence";
 import { prisma } from "@/lib/prisma";
 import { formatKurus } from "@/lib/utils";
 import { isFeatureEnabled } from "@/lib/features";
@@ -24,6 +25,10 @@ export default async function PublicProductPage({
     select: { id: true, active: true, orderMode: true },
   });
   if (!business || !business.active) notFound();
+  // Konum doğrulanmadıysa menü sayfasına (kapıya) yönlendir
+  if (!(await geoAccessOk(business.id, isletmeSlug))) {
+    redirect(masa ? `/${isletmeSlug}/menu?masa=${encodeURIComponent(masa)}` : `/${isletmeSlug}/menu`);
+  }
 
   const product = await prisma.product.findUnique({
     where: { businessId_slug: { businessId: business.id, slug: urunSlug } },

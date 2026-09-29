@@ -5,7 +5,7 @@ import { isFeatureEnabled } from "@/lib/features";
 import { suggestProducts } from "@/lib/ai";
 import { resolveSuggestedProduct } from "@/lib/ai-match";
 import { formatKurus } from "@/lib/utils";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimitAsync } from "@/lib/rate-limit";
 
 const schema = z.object({
   slug: z.string().min(1),
@@ -15,7 +15,7 @@ const schema = z.object({
 // Müşteri tarafı akıllı öneri: "bugün ne yesem?"
 export async function POST(request: Request) {
   const ip = clientIp(request);
-  const limited = rateLimit(`suggest:${ip}`, { limit: 30, windowMs: 15 * 60 * 1000 });
+  const limited = await rateLimitAsync(`suggest:${ip}`, { limit: 30, windowMs: 15 * 60 * 1000 });
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Çok fazla istek, lütfen bekleyin" },

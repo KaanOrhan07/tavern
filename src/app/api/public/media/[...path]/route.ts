@@ -22,8 +22,13 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path: parts } = await params;
-  const path = parts.map(decodeURIComponent).join("/");
-  if (!PATH_RE.test(path)) {
+  let path: string;
+  try {
+    path = parts.map(decodeURIComponent).join("/");
+  } catch {
+    return NextResponse.json({ error: "Geçersiz yol" }, { status: 400 });
+  }
+  if (!PATH_RE.test(path) || path.includes("..")) {
     return NextResponse.json({ error: "Geçersiz yol" }, { status: 400 });
   }
 

@@ -25,6 +25,7 @@ export function PanelShell({
   userName,
   features,
   printerEnabled,
+  idleLogout = true,
   children,
 }: {
   slug: string;
@@ -34,6 +35,8 @@ export function PanelShell({
   userName: string;
   features: Record<FeatureKey, boolean>;
   printerEnabled: boolean;
+  /** "Beni hatırla" ile girilen oturumlarda 30 dk hareketsizlik çıkışı kapalıdır */
+  idleLogout?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -87,7 +90,7 @@ export function PanelShell({
 
   return (
     <div className="flex min-h-screen">
-      <IdleLogout logoutUrl="/api/panel/logout" redirectUrl={`${base}/giris`} />
+      {idleLogout && <IdleLogout logoutUrl="/api/panel/logout" redirectUrl={`${base}/giris`} />}
       {/* Masaüstü sol menü */}
       <aside className="sticky top-0 hidden h-screen w-60 flex-col border-r border-ink-line bg-ink-soft md:flex">
         <div className="border-b border-ink-line p-4">

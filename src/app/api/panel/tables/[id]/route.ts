@@ -25,6 +25,32 @@ export async function GET(
   }
 
   const open = table.orders[0] ?? null;
+
+  // VIP / sık müşteri rozeti: telefon eşleşiyorsa işletmedeki sadakat kaydı
+  let vip: { tierName: string | null; points: number; visits: number } | null = null;
+  if (open?.customerPhone) {
+    const [account, stats] = await Promise.all([
+      prisma.loyaltyAccount.findUnique({
+        where: { businessId_phone: { businessId: ctx.business.id, phone: open.customerPhone } },
+        select: { points: true, tier: { select: { tierName: true } } },
+      }),
+      prisma.customerBusinessStats.findFirst({
+        where: {
+          businessId: ctx.business.id,
+          customerProfile: { phone: open.customerPhone },
+        },
+        select: { totalVisits: true },
+      }),
+    ]);
+    if (account || stats) {
+      vip = {
+        tierName: account?.tier?.tierName ?? null,
+        points: account?.points ?? 0,
+        visits: stats?.totalVisits ?? 0,
+      };
+    }
+  }
+
   return NextResponse.json({
     table: { id: table.id, name: table.name, qrToken: table.qrToken },
     order: open
@@ -40,9 +66,11 @@ export async function GET(
             quantity: i.quantity,
             paidQuantity: i.paidQuantity,
             delivered: i.delivered,
+            status: i.status,
           })),
         }
       : null,
+    vip,
   });
 }
 

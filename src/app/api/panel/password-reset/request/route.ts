@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { clientIp, rateLimitAsync } from "@/lib/rate-limit";
 import { createResetToken } from "@/lib/password";
 import { logger } from "@/lib/logger";
+import { sendEmail } from "@/lib/email";
 
 const schema = z.object({
   slug: z.string().min(1),
@@ -63,13 +64,20 @@ export async function POST(request: Request) {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const resetUrl = `${base}/panel/${business.slug}/sifre-sifirla?token=${token}`;
 
-  // Prod'da e-posta sağlayıcısı bağlanmalı; şimdilik yapılandırılmış log
+  const sent = await sendEmail({
+    to: user.email!,
+    subject: "Tavern — Şifre sıfırlama",
+    text: `Merhaba ${user.name},\n\n${business.name} hesabınız için şifre sıfırlama isteği aldık. Yeni şifre belirlemek için bağlantıya tıklayın (1 saat geçerli):\n\n${resetUrl}\n\nBu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz.\n\nTavern — Digio Medya ve Yazılım`,
+  });
+
   logger.info("password_reset_token_created", {
     businessId: business.id,
     userId: user.id,
     route: "/api/panel/password-reset/request",
+    emailSent: sent.ok,
   });
-  if (process.env.NODE_ENV !== "production") {
+  // E-posta servisi yapılandırılmamışsa (yalnızca geliştirme) bağlantı loga yazılır
+  if (!sent.ok && process.env.NODE_ENV !== "production") {
     logger.info("password_reset_dev_url", { resetUrl });
   }
 

@@ -8,7 +8,16 @@
     "theme": "Design",
     "campaigns": "Kampagnen",
     "customers": "Kunden",
-    "reports": "Berichte"
+    "reports": "Berichte",
+    "tables": "Tische",
+    "menu": "Menü",
+    "stock": "Lager",
+    "staff": "Personal",
+    "dayEnd": "Tagesabschluss",
+    "requests": "Anfragen",
+    "appointments": "Termine",
+    "services": "Leistungen",
+    "locales": "Sprachen"
   },
   "common": {
     "save": "Speichern",
@@ -16,7 +25,15 @@
     "delete": "Löschen",
     "edit": "Bearbeiten",
     "loading": "Laden...",
-    "search": "Suchen"
+    "search": "Suchen",
+    "add": "Hinzufügen",
+    "error": "Ein Fehler ist aufgetreten",
+    "success": "Erfolgreich",
+    "confirm": "Bestätigen",
+    "back": "Zurück",
+    "logout": "Abmelden",
+    "noResults": "Keine Ergebnisse gefunden",
+    "language": "Sprache"
   },
   "appointmentStatus": {
     "PENDING_BUSINESS_APPROVAL": "Wartet auf Freigabe",

@@ -39,3 +39,15 @@ export function createResetToken(): { token: string; tokenHash: string } {
 export function hashResetToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
+
+/**
+ * Şifre değişiminde hem doğrulama hash'i hem (yapılandırılmışsa) AES-256-GCM kopyası üretir.
+ * İkisi her zaman birlikte güncellenir.
+ */
+export async function buildPasswordFields(password: string) {
+  const { encryptSecret, isEncryptionConfigured } = await import("@/lib/crypto");
+  return {
+    passwordHash: await hashPassword(password),
+    passwordEncrypted: isEncryptionConfigured() ? encryptSecret(password) : null,
+  };
+}

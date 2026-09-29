@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, isGuardError } from "@/lib/guard";
-import { writeAuditLog } from "@/lib/audit";
+import { writeAdminAudit } from "@/lib/audit";
 import { formatKurus } from "@/lib/utils";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const ctx = await requireAdmin();
@@ -28,15 +28,14 @@ export async function GET(
     return NextResponse.json({ error: "Müşteri bulunamadı" }, { status: 404 });
   }
 
-  await writeAuditLog({
+  await writeAdminAudit({
+    admin: ctx.session,
     action: "UPDATE",
     entityType: "CustomerProfile",
     entityId: profile.id,
-    metadata: {
-      admin: true,
-      action: "customer_detail_viewed",
-      adminUserId: ctx.session.adminUserId ?? null,
-    },
+    summary: `Müşteri detayı görüntülendi: ${profile.fullName ?? profile.phone}`,
+    metadata: { action: "customer_detail_viewed" },
+    request,
   });
 
   const loyalty = await prisma.loyaltyAccount.findMany({

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getFeatureMap } from "@/lib/features";
 import { formatKurus, todayRange } from "@/lib/utils";
 import { Badge, Card } from "@/components/ui";
+import { getAdminSession } from "@/lib/auth";
 import { AdminBusinessControls } from "@/components/admin/AdminBusinessControls";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +20,9 @@ export default async function AdminBusinessDetailPage({
   });
   if (!business) notFound();
 
+  const session = await getAdminSession();
   const { start, end } = todayRange();
-  const [featureMap, tableCount, productCount, staffCount, openOrders, todayPayments] =
+  const [featureMap, tableCount, productCount, staffCount, openOrders, todayPayments, staffList] =
     await Promise.all([
       getFeatureMap(business.id),
       prisma.table.count({ where: { businessId: business.id } }),
@@ -30,6 +32,11 @@ export default async function AdminBusinessDetailPage({
       prisma.payment.aggregate({
         where: { businessId: business.id, createdAt: { gte: start, lt: end } },
         _sum: { amountKurus: true },
+      }),
+      prisma.user.findMany({
+        where: { businessId: business.id, role: "STAFF" },
+        select: { id: true, name: true, active: true },
+        orderBy: { name: "asc" },
       }),
     ]);
 
@@ -51,7 +58,7 @@ export default async function AdminBusinessDetailPage({
             {business.orderMode === "WAITER_ONLY" ? "Sadece Garson" : "Müşteri QR"}
           </p>
         </div>
-        <Badge tone="warn">Salt Okunur Görünüm</Badge>
+        <Badge tone={business.active ? "ok" : "danger"}>{business.active ? "Aktif" : "Pasif"}</Badge>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -63,10 +70,31 @@ export default async function AdminBusinessDetailPage({
         ))}
       </div>
 
+      <Card>
+        <p className="mb-2 font-medium">Personel ({staffList.length})</p>
+        {staffList.length === 0 ? (
+          <p className="text-sm text-cream-dim">Personel yok</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {staffList.map((u) => (
+              <Badge key={u.id} tone={u.active ? "neutral" : "danger"}>
+                {u.name}
+                {u.active ? "" : " (pasif)"}
+              </Badge>
+            ))}
+          </div>
+        )}
+        <p className="mt-3 text-xs text-cream-dim">
+          Sipariş ve menü verisi salt okunurdur; işletme durumu ve özellikler bu sayfadan yönetilebilir.
+        </p>
+      </Card>
+
       <AdminBusinessControls
         businessId={business.id}
+        businessName={business.name}
         active={business.active}
         featureMap={featureMap}
+        isSuper={session?.level === "super"}
       />
     </div>
   );

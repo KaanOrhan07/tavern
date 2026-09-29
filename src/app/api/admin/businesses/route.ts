@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { isReservedBusinessSlug, slugify } from "@/lib/utils";
+import { requireAdmin, isGuardError } from "@/lib/guard";
+import { buildPasswordFields, validateOwnerPassword } from "@/lib/password";
+import { writeAdminAudit } from "@/lib/audit";
 
 const createSchema = z.object({
   name: z.string().min(2),
@@ -13,11 +15,16 @@ const createSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const ctx = await requireAdmin();
+  if (isGuardError(ctx)) return ctx;
+
   const body = createSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
     return NextResponse.json({ error: "Geçersiz istek" }, { status: 400 });
   }
   const { name, typeId, ownerName, ownerEmail, ownerPassword } = body.data;
+  const pwError = validateOwnerPassword(ownerPassword);
+  if (pwError) return NextResponse.json({ error: pwError }, { status: 400 });
 
   const existingEmail = await prisma.user.findUnique({
     where: { email: ownerEmail },
@@ -47,7 +54,7 @@ export async function POST(request: Request) {
           role: "OWNER",
           name: ownerName,
           email: ownerEmail,
-          passwordHash: await bcrypt.hash(ownerPassword, 10),
+          ...(await buildPasswordFields(ownerPassword)),
         },
       },
     },
@@ -59,6 +66,16 @@ export async function POST(request: Request) {
       data: { businessId: business.id },
     });
   }
+
+  await writeAdminAudit({
+    admin: ctx.session,
+    businessId: business.id,
+    action: "CREATE",
+    entityType: "Business",
+    entityId: business.id,
+    summary: `İşletme oluşturuldu: ${business.name}`,
+    request,
+  });
 
   return NextResponse.json({ ok: true, business });
 }

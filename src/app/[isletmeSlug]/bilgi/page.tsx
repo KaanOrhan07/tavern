@@ -25,15 +25,26 @@ export default async function BusinessInfoPage({
     hours = `${s.openTime} – ${s.closeTime}`;
   }
 
+  // Öncelik: işletmenin yapıştırdığı Google Maps linki → koordinat → adres
   const mapsUrl =
-    info?.latitude != null && info?.longitude != null
+    info?.mapsUrl ??
+    (info?.latitude != null && info?.longitude != null
       ? `https://www.google.com/maps/dir/?api=1&destination=${info.latitude},${info.longitude}`
       : info?.address
         ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(info.address)}`
-        : null;
+        : null);
+
+  const links = [
+    { label: "Instagram", href: info?.instagramUrl },
+    { label: "TikTok", href: info?.tiktokUrl },
+    { label: "YouTube", href: info?.youtubeUrl },
+    { label: "Facebook", href: info?.facebookUrl },
+    { label: "LinkedIn", href: info?.linkedinUrl },
+    { label: "Web sitesi", href: info?.websiteUrl },
+  ].filter((l): l is { label: string; href: string } => Boolean(l.href));
 
   return (
-    <div className="mx-auto min-h-dvh max-w-lg bg-ink px-5 py-8 text-cream">
+    <div className="mx-auto max-w-lg py-4 text-cream">
       <Link href={`/${business.slug}`} className="text-sm text-gold hover:underline">
         ← Geri
       </Link>
@@ -78,21 +89,17 @@ export default async function BusinessInfoPage({
             Yol Tarifi Al
           </a>
         )}
-        {info?.instagramUrl && (
-          <a href={info.instagramUrl} target="_blank" rel="noopener noreferrer" className="text-gold hover:underline">
-            Instagram
+        {links.map((l) => (
+          <a
+            key={l.label}
+            href={l.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-xl border border-ink-line px-4 py-3 text-center text-gold transition-colors hover:border-gold-dark"
+          >
+            {l.label} →
           </a>
-        )}
-        {info?.tiktokUrl && (
-          <a href={info.tiktokUrl} target="_blank" rel="noopener noreferrer" className="text-gold hover:underline">
-            TikTok
-          </a>
-        )}
-        {info?.websiteUrl && (
-          <a href={info.websiteUrl} target="_blank" rel="noopener noreferrer" className="text-gold hover:underline">
-            Web sitesi
-          </a>
-        )}
+        ))}
       </div>
     </div>
   );

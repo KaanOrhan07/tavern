@@ -536,6 +536,9 @@ export function MenuManager({
                   onChange={(e) => setForm({ ...form, imageFile: e.target.files?.[0] ?? null })}
                   required={!form.id}
                 />
+                <p className="mt-1 text-[11px] text-cream-dim">
+                  Önerilen: 1080×1080 (kare), en fazla 4 MB. Fotoğraf otomatik küçültülür ve sıkıştırılır; oran korunur, görüntü esnetilmez.
+                </p>
               </div>
 
               <div className="rounded-xl border border-ink-line p-3">

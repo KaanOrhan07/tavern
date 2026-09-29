@@ -7,6 +7,8 @@ import { Button, Card, Input, Label, TavernLogo } from "@/components/ui";
 export default function AdminLoginPage() {
   const router = useRouter();
   const [key, setKey] = useState("");
+  const [password, setPassword] = useState("");
+  const [needPassword, setNeedPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -17,16 +19,22 @@ export default function AdminLoginPage() {
     const res = await fetch("/api/admin/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key }),
+      body: JSON.stringify({ key, password: password || undefined }),
     });
     if (res.ok) {
       router.push("/admin/isletmeler");
       router.refresh();
-    } else {
-      const data = await res.json().catch(() => null);
-      setError(data?.error ?? "Giriş başarısız");
-      setLoading(false);
+      return;
     }
+    const data = await res.json().catch(() => null);
+    if (data?.needPassword) {
+      // Ana admin şifresizdir; anahtar ana anahtar değilse alt admin şifresi istenir
+      setNeedPassword(true);
+      setError(null);
+    } else {
+      setError(data?.error ?? "Giriş başarısız");
+    }
+    setLoading(false);
   }
 
   return (
@@ -34,9 +42,7 @@ export default function AdminLoginPage() {
       <Card className="w-full max-w-sm">
         <div className="mb-6 mt-2">
           <TavernLogo size="md" />
-          <p className="mt-2 text-center text-xs text-cream-dim">
-            Yönetici Girişi
-          </p>
+          <p className="mt-2 text-center text-xs text-cream-dim">Yönetici Girişi</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -44,15 +50,31 @@ export default function AdminLoginPage() {
             <Input
               type="password"
               value={key}
-              onChange={(e) => setKey(e.target.value)}
+              onChange={(e) => {
+                setKey(e.target.value);
+                setNeedPassword(false);
+              }}
               placeholder="Yönetici anahtarınız"
               autoFocus
               required
             />
           </div>
+          {needPassword && (
+            <div>
+              <Label>Şifre</Label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Alt admin şifreniz"
+                autoFocus
+                required
+              />
+            </div>
+          )}
           {error && <p className="text-sm text-danger">{error}</p>}
           <Button type="submit" disabled={loading || !key} className="w-full">
-            {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
+            {loading ? "Giriş yapılıyor..." : needPassword ? "Giriş Yap" : "Devam"}
           </Button>
         </form>
       </Card>

@@ -5,17 +5,18 @@ import {
   createCustomerSessionToken,
   setCustomerSessionCookie,
 } from "@/lib/customer-auth";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimitAsync } from "@/lib/rate-limit";
 
 const schema = z.object({
   phone: z.string().min(10).max(20),
   otp: z.string().regex(/^\d{6}$/),
   challengeToken: z.string().min(10),
+  remember: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
   const ip = clientIp(request);
-  const limited = rateLimit(`customer-otp:${ip}`, { limit: 20, windowMs: 15 * 60 * 1000 });
+  const limited = await rateLimitAsync(`customer-otp:${ip}`, { limit: 20, windowMs: 15 * 60 * 1000 });
   if (!limited.ok) {
     return NextResponse.json({ error: "Çok fazla istek" }, { status: 429 });
   }
@@ -26,9 +27,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    const remember = body.data.remember === true;
     const profile = await confirmCustomerOtp(body.data);
-    const token = await createCustomerSessionToken(profile);
-    await setCustomerSessionCookie(token);
+    const token = await createCustomerSessionToken(profile, remember);
+    await setCustomerSessionCookie(token, remember);
     return NextResponse.json({
       ok: true,
       profile: {

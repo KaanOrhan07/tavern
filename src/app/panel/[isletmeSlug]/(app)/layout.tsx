@@ -51,6 +51,7 @@ export default async function PanelAppLayout({
       userName={session.name}
       features={features}
       printerEnabled={features.kitchen_printer}
+      idleLogout={!session.remember}
     >
       {children}
     </PanelShell>

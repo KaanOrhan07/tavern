@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Badge, Button, Card, Input, Label } from "@/components/ui";
 import { APP_VERSION } from "@/lib/version";
+import { ALL_WORK_DAYS, WEEK_ORDER } from "@/lib/appointments-shared";
 import { CustomerPublicLink } from "@/components/panel/CustomerPublicLink";
 import {
   connectBluetoothPrinter,
@@ -61,11 +62,16 @@ export function SettingsView({
   const [savingBarber, setSavingBarber] = useState(false);
   const [bizAddress, setBizAddress] = useState("");
   const [bizPhone, setBizPhone] = useState("");
-  const [bizLat, setBizLat] = useState("");
-  const [bizLng, setBizLng] = useState("");
+  const [bizMapsUrl, setBizMapsUrl] = useState("");
+  const [bizHasCoords, setBizHasCoords] = useState(false);
+  const [bizGeofence, setBizGeofence] = useState(true);
   const [bizInstagram, setBizInstagram] = useState("");
   const [bizTiktok, setBizTiktok] = useState("");
+  const [bizYoutube, setBizYoutube] = useState("");
+  const [bizFacebook, setBizFacebook] = useState("");
+  const [bizLinkedin, setBizLinkedin] = useState("");
   const [bizWebsite, setBizWebsite] = useState("");
+  const [workDays, setWorkDays] = useState<number[]>(ALL_WORK_DAYS);
   const [bizDescription, setBizDescription] = useState("");
   const [savingBizInfo, setSavingBizInfo] = useState(false);
   const [kitchenClearMinutes, setKitchenClearMinutes] = useState(
@@ -83,6 +89,9 @@ export function SettingsView({
         setOpenTime(data.settings.openTime);
         setCloseTime(data.settings.closeTime);
         setResponseTimeoutMinutes(String(data.settings.responseTimeoutMinutes ?? 60));
+        if (Array.isArray(data.settings.workDays) && data.settings.workDays.length) {
+          setWorkDays(data.settings.workDays);
+        }
       });
   }, [isBarber]);
 
@@ -90,13 +99,17 @@ export function SettingsView({
     fetch("/api/panel/business-info")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
+        if (data && typeof data.geofenceEnabled === "boolean") setBizGeofence(data.geofenceEnabled);
         if (!data?.info) return;
         setBizAddress(data.info.address ?? "");
         setBizPhone(data.info.phone ?? "");
-        setBizLat(data.info.latitude != null ? String(data.info.latitude) : "");
-        setBizLng(data.info.longitude != null ? String(data.info.longitude) : "");
+        setBizMapsUrl(data.info.mapsUrl ?? "");
+        setBizHasCoords(Boolean(data.info.hasCoordinates));
         setBizInstagram(data.info.instagramUrl ?? "");
         setBizTiktok(data.info.tiktokUrl ?? "");
+        setBizYoutube(data.info.youtubeUrl ?? "");
+        setBizFacebook(data.info.facebookUrl ?? "");
+        setBizLinkedin(data.info.linkedinUrl ?? "");
         setBizWebsite(data.info.websiteUrl ?? "");
         setBizDescription(data.info.description ?? "");
       });
@@ -120,10 +133,13 @@ export function SettingsView({
         openTime,
         closeTime,
         responseTimeoutMinutes: Number(responseTimeoutMinutes),
+        workDays,
       }),
     });
-    if (!res.ok) setError("Randevu ayarları kaydedilemedi");
-    else setOkMessage("Randevu ayarları güncellendi");
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setError(data?.error ?? "Randevu ayarları kaydedilemedi");
+    } else setOkMessage("Randevu ayarları güncellendi");
     setSavingBarber(false);
   }
 
@@ -137,16 +153,23 @@ export function SettingsView({
       body: JSON.stringify({
         address: bizAddress || null,
         phone: bizPhone || null,
-        latitude: bizLat ? Number(bizLat) : null,
-        longitude: bizLng ? Number(bizLng) : null,
-        instagramUrl: bizInstagram || null,
-        tiktokUrl: bizTiktok || null,
-        websiteUrl: bizWebsite || null,
+        mapsUrl: bizMapsUrl.trim() || null,
+        instagramUrl: bizInstagram.trim() || null,
+        tiktokUrl: bizTiktok.trim() || null,
+        youtubeUrl: bizYoutube.trim() || null,
+        facebookUrl: bizFacebook.trim() || null,
+        linkedinUrl: bizLinkedin.trim() || null,
+        websiteUrl: bizWebsite.trim() || null,
         description: bizDescription || null,
+        geofenceEnabled: bizGeofence,
       }),
     });
-    if (!res.ok) setError("İşletme bilgisi kaydedilemedi");
-    else setOkMessage("İşletme bilgisi güncellendi");
+    const data = await res.json().catch(() => null);
+    if (!res.ok) setError(data?.error ?? "İşletme bilgisi kaydedilemedi");
+    else {
+      setBizHasCoords(Boolean(data?.hasCoordinates));
+      setOkMessage("İşletme bilgisi güncellendi — müşteri menüsüne anında yansır");
+    }
     setSavingBizInfo(false);
   }
 
@@ -406,6 +429,7 @@ export function SettingsView({
                 onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
                 className="block text-sm text-cream-dim"
               />
+              <p className="mt-1 text-[11px] text-cream-dim">Önerilen: 400×400 (kare), en fazla 4 MB. Oran korunur.</p>
             </div>
             <div>
               <Label>Banner</Label>
@@ -424,6 +448,7 @@ export function SettingsView({
                 onChange={(e) => setBannerFile(e.target.files?.[0] ?? null)}
                 className="block text-sm text-cream-dim"
               />
+              <p className="mt-1 text-[11px] text-cream-dim">Önerilen: 1200×600 (2:1 yatay), en fazla 4 MB. Oran korunur.</p>
             </div>
           </div>
           <Button type="submit" disabled={savingProfile}>
@@ -583,7 +608,38 @@ export function SettingsView({
                 <option value="720">12 saat</option>
               </select>
             </div>
-            <Button type="submit" disabled={savingBarber} className="sm:col-span-3">
+            <div className="sm:col-span-3">
+              <Label>Çalışma günleri</Label>
+              <div className="flex flex-wrap gap-2">
+                {WEEK_ORDER.map((d) => {
+                  const on = workDays.includes(d.day);
+                  return (
+                    <label
+                      key={d.day}
+                      className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                        on ? "border-gold text-gold" : "border-ink-line text-cream-dim"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() =>
+                          setWorkDays((prev) =>
+                            prev.includes(d.day) ? prev.filter((x) => x !== d.day) : [...prev, d.day]
+                          )
+                        }
+                        className="h-4 w-4 accent-gold"
+                      />
+                      {d.label}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-[11px] text-cream-dim">
+                Kapalı günlerde müşteri randevu alamaz (tarih seçicide pasif görünür, sunucuda da engellenir).
+              </p>
+            </div>
+            <Button type="submit" disabled={savingBarber || workDays.length === 0} className="sm:col-span-3">
               {savingBarber ? "Kaydediliyor..." : "Randevu Ayarlarını Kaydet"}
             </Button>
           </form>
@@ -604,25 +660,70 @@ export function SettingsView({
             <Label>Telefon</Label>
             <Input value={bizPhone} onChange={(e) => setBizPhone(e.target.value)} />
           </div>
-          <div>
-            <Label>Enlem</Label>
-            <Input value={bizLat} onChange={(e) => setBizLat(e.target.value)} placeholder="41.01" />
-          </div>
-          <div>
-            <Label>Boylam</Label>
-            <Input value={bizLng} onChange={(e) => setBizLng(e.target.value)} placeholder="28.97" />
-          </div>
-          <div>
-            <Label>Instagram URL</Label>
-            <Input value={bizInstagram} onChange={(e) => setBizInstagram(e.target.value)} />
-          </div>
-          <div>
-            <Label>TikTok URL</Label>
-            <Input value={bizTiktok} onChange={(e) => setBizTiktok(e.target.value)} />
-          </div>
           <div className="sm:col-span-2">
+            <Label>Google Maps İşletme Linki</Label>
+            <Input
+              value={bizMapsUrl}
+              onChange={(e) => setBizMapsUrl(e.target.value)}
+              placeholder="https://maps.app.goo.gl/..."
+            />
+            <p className="mt-1 text-[11px] text-cream-dim">
+              Google Maps&apos;ten işletmenizi açıp &quot;Paylaş → Bağlantıyı kopyala&quot; ile alın. Konum bu linkten otomatik
+              çıkarılır.{" "}
+              {bizMapsUrl.trim() &&
+                (bizHasCoords ? (
+                  <span className="text-ok">✓ Konum tanımlı</span>
+                ) : (
+                  <span className="text-warn">Kaydedince konum doğrulanır</span>
+                ))}
+            </p>
+          </div>
+          {!isBarber && (
+            <label className="flex items-start gap-2 text-sm sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={bizGeofence || mode === "CUSTOMER_QR"}
+                disabled={mode === "CUSTOMER_QR"}
+                onChange={(e) => setBizGeofence(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-gold"
+              />
+              <span>
+                Menüye yalnızca işletme içinden (100 m) erişilsin
+                <span className="block text-[11px] text-cream-dim">
+                  Yalnızca Google Maps linki tanımlıysa çalışır. Konum izni vermeyen veya uzaktaki kişiler menüyü göremez.
+                  {mode === "CUSTOMER_QR" && " Müşteri QR siparişi açıkken bu kısıt zorunludur (evden sipariş verilemez)."}
+                </span>
+                {mode === "CUSTOMER_QR" && !bizHasCoords && (
+                  <span className="mt-1 block text-[11px] text-danger">
+                    ⚠ Google Maps linki kaydedilmediği için müşteri QR siparişi şu an KAPALI. Yukarıya linki yapıştırıp kaydedin.
+                  </span>
+                )}
+              </span>
+            </label>
+          )}
+          <div>
+            <Label>Instagram</Label>
+            <Input value={bizInstagram} onChange={(e) => setBizInstagram(e.target.value)} placeholder="https://instagram.com/..." />
+          </div>
+          <div>
+            <Label>TikTok</Label>
+            <Input value={bizTiktok} onChange={(e) => setBizTiktok(e.target.value)} placeholder="https://tiktok.com/@..." />
+          </div>
+          <div>
+            <Label>YouTube</Label>
+            <Input value={bizYoutube} onChange={(e) => setBizYoutube(e.target.value)} placeholder="https://youtube.com/@..." />
+          </div>
+          <div>
+            <Label>Facebook</Label>
+            <Input value={bizFacebook} onChange={(e) => setBizFacebook(e.target.value)} placeholder="https://facebook.com/..." />
+          </div>
+          <div>
+            <Label>LinkedIn</Label>
+            <Input value={bizLinkedin} onChange={(e) => setBizLinkedin(e.target.value)} placeholder="https://linkedin.com/company/..." />
+          </div>
+          <div>
             <Label>Web sitesi</Label>
-            <Input value={bizWebsite} onChange={(e) => setBizWebsite(e.target.value)} />
+            <Input value={bizWebsite} onChange={(e) => setBizWebsite(e.target.value)} placeholder="https://..." />
           </div>
           <div className="sm:col-span-2">
             <Label>Kısa tanıtım</Label>
@@ -633,6 +734,22 @@ export function SettingsView({
           </Button>
         </form>
       </Card>
+
+      {!isBarber && (
+        <Card>
+          <p className="mb-1 font-medium">Günlük Rapor (PDF)</p>
+          <p className="mb-4 text-xs text-cream-dim">
+            Bugünün cirosu, ürün bazlı satışlar, personel bazlı sipariş sayısı ve harcanan malzemeler.
+          </p>
+          <a
+            href="/api/panel/reports/daily-pdf"
+            download
+            className="inline-flex min-h-11 items-center rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-light"
+          >
+            PDF indir
+          </a>
+        </Card>
+      )}
 
       {!isBarber && (
       <Card>

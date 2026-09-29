@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { clientIp, rateLimitAsync } from "@/lib/rate-limit";
+import { checkOrderGeo } from "@/lib/geofence";
 
 const schema = z.object({ qrToken: z.string().min(1) });
 
 // Müşteri "Garson Çağır" butonu — masaya bildirim düşürür.
 export async function POST(request: Request) {
+  const limited = await rateLimitAsync(`call-waiter:${clientIp(request)}`, {
+    limit: 20,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!limited.ok) return NextResponse.json({ error: "Çok fazla istek" }, { status: 429 });
+
   const body = schema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
     return NextResponse.json({ error: "Geçersiz istek" }, { status: 400 });
@@ -17,6 +25,13 @@ export async function POST(request: Request) {
   });
   if (!table || !table.business.active) {
     return NextResponse.json({ error: "Masa bulunamadı" }, { status: 404 });
+  }
+  const geo = await checkOrderGeo(table.businessId, table.business.slug, { requireFence: false });
+  if (!geo.ok) {
+    return NextResponse.json(
+      { error: geo.message, geoRequired: true, reason: geo.reason },
+      { status: 403 }
+    );
   }
 
   // Aynı masadan art arda basılan çağrılar için kısa süreli tekilleştirme (spam önleme).

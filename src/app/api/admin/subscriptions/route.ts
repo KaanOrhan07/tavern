@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, isGuardError } from "@/lib/guard";
-import { writeAuditLog } from "@/lib/audit";
+import { writeAdminAudit } from "@/lib/audit";
 
 export async function GET(request: Request) {
   const ctx = await requireAdmin();
@@ -28,6 +28,8 @@ export async function GET(request: Request) {
       paymentStatus: b.subscription?.paymentStatus ?? "current",
       lastPaymentDate: b.subscription?.lastPaymentDate ?? null,
       nextPaymentDate: b.subscription?.nextPaymentDate ?? null,
+      paymentWindowStart: b.subscription?.paymentWindowStart ?? null,
+      paymentWindowDays: b.subscription?.paymentWindowDays ?? 7,
       monthlyFeeKurus: b.subscription?.monthlyFeeKurus ?? null,
       notes: b.subscription?.notes ?? null,
     }))
@@ -46,6 +48,8 @@ const patchSchema = z.object({
   paymentStatus: z.enum(["current", "pending", "overdue"]).optional(),
   monthlyFeeKurus: z.number().int().min(0).nullable().optional(),
   nextPaymentDate: z.string().datetime().nullable().optional(),
+  paymentWindowStart: z.string().datetime().nullable().optional(),
+  paymentWindowDays: z.number().int().min(1).max(31).optional(),
   notes: z.string().max(1000).nullable().optional(),
 });
 
@@ -59,6 +63,7 @@ export async function PATCH(request: Request) {
   }
 
   const { businessId, ...rest } = body.data;
+  const windowChanged = rest.paymentWindowStart !== undefined || rest.paymentWindowDays !== undefined;
   const data = {
     ...rest,
     nextPaymentDate:
@@ -67,6 +72,14 @@ export async function PATCH(request: Request) {
         : rest.nextPaymentDate
           ? new Date(rest.nextPaymentDate)
           : null,
+    paymentWindowStart:
+      rest.paymentWindowStart === undefined
+        ? undefined
+        : rest.paymentWindowStart
+          ? new Date(rest.paymentWindowStart)
+          : null,
+    // Pencere değişince bildirim durumu sıfırlanır (yeni pencere için tekrar bildirilsin)
+    ...(windowChanged ? { businessNotifiedAt: null, adminNotifiedAt: null } : {}),
   };
 
   const subscription = await prisma.businessSubscription.upsert({
@@ -75,13 +88,15 @@ export async function PATCH(request: Request) {
     update: data,
   });
 
-  await writeAuditLog({
+  await writeAdminAudit({
+    admin: ctx.session,
     businessId,
     action: "SETTINGS_CHANGE",
     entityType: "BusinessSubscription",
     entityId: businessId,
-    afterData: subscription,
-    metadata: { admin: true },
+    summary: "Abonelik/ödeme bilgisi güncellendi",
+    metadata: { changes: rest },
+    request,
   });
 
   return NextResponse.json({ ok: true, subscription });
@@ -118,6 +133,16 @@ export async function POST(request: Request) {
     });
     const next = new Date(paidAt);
     next.setMonth(next.getMonth() + 1);
+    const current = await tx.businessSubscription.findUnique({
+      where: { businessId: body.data.businessId },
+      select: { paymentWindowStart: true },
+    });
+    // Pencere tanımlıysa bir sonraki aya kaydır ve bildirim durumunu sıfırla
+    let nextWindow: Date | null = null;
+    if (current?.paymentWindowStart) {
+      nextWindow = new Date(current.paymentWindowStart);
+      while (nextWindow <= paidAt) nextWindow.setMonth(nextWindow.getMonth() + 1);
+    }
     await tx.businessSubscription.upsert({
       where: { businessId: body.data.businessId },
       create: {
@@ -130,18 +155,22 @@ export async function POST(request: Request) {
         paymentStatus: "current",
         lastPaymentDate: paidAt,
         nextPaymentDate: next,
+        ...(nextWindow
+          ? { paymentWindowStart: nextWindow, businessNotifiedAt: null, adminNotifiedAt: null }
+          : {}),
       },
     });
     return payment;
   });
 
-  await writeAuditLog({
+  await writeAdminAudit({
+    admin: ctx.session,
     businessId: body.data.businessId,
     action: "PAYMENT",
     entityType: "PaymentRecord",
     entityId: record.id,
-    afterData: record,
-    metadata: { admin: true },
+    summary: `Ödeme kaydedildi: ${(record.amountKurus / 100).toFixed(2)} ₺`,
+    request,
   });
 
   return NextResponse.json({ ok: true, payment: record });

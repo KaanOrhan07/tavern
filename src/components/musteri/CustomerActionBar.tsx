@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatKurus } from "@/lib/utils";
+import { fetchWithGeo } from "@/lib/geo-client";
 
 export function CustomerActionBar({
   tableName,
@@ -26,11 +27,12 @@ export function CustomerActionBar({
   async function callWaiter() {
     if (!qrToken || waiterStatus === "sending") return;
     setWaiterStatus("sending");
-    const res = await fetch("/api/public/call-waiter", {
+    const { res, geoMessage } = await fetchWithGeo(qrToken, "/api/public/call-waiter", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ qrToken }),
     });
+    if (!res.ok && geoMessage) alert(geoMessage);
     setWaiterStatus(res.ok ? "sent" : "idle");
     if (res.ok) setTimeout(() => setWaiterStatus("idle"), 15_000);
   }
@@ -38,11 +40,12 @@ export function CustomerActionBar({
   async function requestBill() {
     if (!qrToken || billStatus === "sending") return;
     setBillStatus("sending");
-    const res = await fetch("/api/public/request-bill", {
+    const { res, geoMessage } = await fetchWithGeo(qrToken, "/api/public/request-bill", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ qrToken }),
     });
+    if (!res.ok && geoMessage) alert(geoMessage);
     setBillStatus(res.ok ? "sent" : "idle");
     if (res.ok) setTimeout(() => setBillStatus("idle"), 15_000);
   }

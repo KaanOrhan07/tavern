@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { loadPublicMenuData } from "@/lib/public-menu-data";
+import { geoAccessOk } from "@/lib/geofence";
+import { GeoGate } from "@/components/musteri/GeoGate";
 import { CustomerMenuApp } from "@/components/musteri/CustomerMenuApp";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +20,10 @@ export default async function PublicMenuPage({
     where: { slug: isletmeSlug },
   });
   if (!business || !business.active) notFound();
+
+  if (!(await geoAccessOk(business.id, isletmeSlug))) {
+    return <GeoGate slug={isletmeSlug} businessName={business.name} />;
+  }
 
   const [menuData, table, localeSettings] = await Promise.all([
     loadPublicMenuData(business.id),

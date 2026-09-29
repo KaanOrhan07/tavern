@@ -7,7 +7,10 @@ const SESSION_DURATION = "12h";
 
 export type AdminSession = {
   role: "admin";
+  /** "super": env ADMIN_KEY ile giren ana admin. "sub": ana adminin oluşturduğu alt admin. */
+  level: "super" | "sub";
   adminUserId?: string;
+  adminName: string;
   sessionVersion?: number;
 };
 
@@ -18,7 +21,11 @@ export type PanelSession = {
   businessSlug: string;
   name: string;
   sessionVersion: number;
+  /** "Beni hatırla": true → 90 gün kalıcı oturum, false → tarayıcı kapanınca biten oturum */
+  remember?: boolean;
 };
+
+const REMEMBER_SECONDS = 60 * 60 * 24 * 90;
 
 function secretKey() {
   const secret = process.env.AUTH_SECRET;
@@ -26,11 +33,11 @@ function secretKey() {
   return new TextEncoder().encode(secret);
 }
 
-async function sign(payload: Record<string, unknown>) {
+async function sign(payload: Record<string, unknown>, duration: string = SESSION_DURATION) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime(SESSION_DURATION)
+    .setExpirationTime(duration)
     .sign(secretKey());
 }
 
@@ -45,14 +52,18 @@ async function verify<T>(token: string): Promise<T | null> {
 
 // --- Admin ---
 
-export async function createAdminSession(extra?: {
+export async function createAdminSession(extra: {
+  level: "super" | "sub";
+  adminName: string;
   adminUserId?: string;
   sessionVersion?: number;
 }) {
   const token = await sign({
     role: "admin",
-    adminUserId: extra?.adminUserId,
-    sessionVersion: extra?.sessionVersion ?? 1,
+    level: extra.level,
+    adminName: extra.adminName,
+    adminUserId: extra.adminUserId,
+    sessionVersion: extra.sessionVersion ?? 1,
   });
   (await cookies()).set(ADMIN_COOKIE, token, {
     httpOnly: true,
@@ -67,7 +78,9 @@ export async function getAdminSession(): Promise<AdminSession | null> {
   const token = (await cookies()).get(ADMIN_COOKIE)?.value;
   if (!token) return null;
   const session = await verify<AdminSession>(token);
-  return session?.role === "admin" ? session : null;
+  if (session?.role !== "admin") return null;
+  // Eski (2.1.x) token'larda level yoktu — sadece env-key ile girilebildiği için super sayılır
+  return { ...session, level: session.level ?? "super", adminName: session.adminName ?? "Ana Admin" };
 }
 
 export async function destroyAdminSession() {
@@ -77,13 +90,15 @@ export async function destroyAdminSession() {
 // --- Panel (işletme sahibi + garson) ---
 
 export async function createPanelSession(session: PanelSession) {
-  const token = await sign({ ...session });
+  const remember = session.remember === true;
+  const token = await sign({ ...session }, remember ? "90d" : SESSION_DURATION);
   (await cookies()).set(PANEL_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 12,
+    // maxAge yoksa oturum çerezi: tarayıcı kapanınca sonlanır
+    ...(remember ? { maxAge: REMEMBER_SECONDS } : {}),
   });
 }
 

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, isGuardError } from "@/lib/guard";
 import { hashPin } from "@/lib/pin";
-import { writeAuditLog } from "@/lib/audit";
+import { writeAdminAudit } from "@/lib/audit";
 import { randomInt } from "crypto";
 
 export async function GET(request: Request) {
@@ -87,12 +87,14 @@ export async function POST(request: Request) {
     },
   });
 
-  await writeAuditLog({
+  await writeAdminAudit({
+    admin: ctx.session,
     action: "UPDATE",
     entityType: "CustomerProfile",
     entityId: profile.id,
-    afterData: { forcePinChange: true },
-    metadata: { admin: true, action: "pin_reset" },
+    summary: `Müşteri PIN'i sıfırlandı: ${profile.phone}`,
+    metadata: { action: "pin_reset" },
+    request,
   });
 
   return NextResponse.json({

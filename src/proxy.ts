@@ -4,6 +4,18 @@ import { jwtVerify } from "jose";
 const ADMIN_COOKIE = "tavern_admin";
 const PANEL_COOKIE = "tavern_session";
 
+// /panel altında işletme slug'ı olmayan müşteri rotaları (utils.ts RESERVED_BUSINESS_SLUGS ile uyumlu)
+const CUSTOMER_PANEL_SEGMENTS = new Set(["giris-yap", "kayit-ol", "hesabim", "pin-sifirla"]);
+// Oturum açmadan erişilebilen işletme paneli alt yolları
+const PUBLIC_PANEL_SUBPATHS = new Set(["/giris", "/sifre-sifirla"]);
+// Oturum gerektirmeyen panel API uçları
+const PUBLIC_PANEL_API = new Set([
+  "/api/panel/login",
+  "/api/panel/logout",
+  "/api/panel/password-reset/request",
+  "/api/panel/password-reset/confirm",
+]);
+
 async function verifyToken(token: string | undefined) {
   if (!token) return null;
   try {
@@ -38,7 +50,12 @@ export async function proxy(request: NextRequest) {
 
   // --- Panel sayfaları: /panel/[slug]/... (giris hariç) ---
   const panelPageMatch = pathname.match(/^\/panel\/([^/]+)(\/.*)?$/);
-  if (panelPageMatch && panelPageMatch[2] && panelPageMatch[2] !== "/giris") {
+  if (
+    panelPageMatch &&
+    panelPageMatch[2] &&
+    !CUSTOMER_PANEL_SEGMENTS.has(panelPageMatch[1]) &&
+    !PUBLIC_PANEL_SUBPATHS.has(panelPageMatch[2].replace(/\/$/, ""))
+  ) {
     const session = await verifyToken(request.cookies.get(PANEL_COOKIE)?.value);
     const slug = decodeURIComponent(panelPageMatch[1]);
     if (!session || session.businessSlug !== slug) {
@@ -49,7 +66,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // --- Panel API (login hariç) ---
-  if (pathname.startsWith("/api/panel") && pathname !== "/api/panel/login" && pathname !== "/api/panel/logout") {
+  if (pathname.startsWith("/api/panel") && !PUBLIC_PANEL_API.has(pathname)) {
     const session = await verifyToken(request.cookies.get(PANEL_COOKIE)?.value);
     if (!session || (session.role !== "owner" && session.role !== "staff")) {
       return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });

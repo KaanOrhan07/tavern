@@ -1,3 +1,4 @@
+import { validateRecipeIngredients } from "@/lib/recipe-validate";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -57,6 +58,9 @@ export async function POST(request: Request) {
   if (!recipe.success) {
     return NextResponse.json({ error: "Geçersiz reçete" }, { status: 400 });
   }
+
+  const recipeError = await validateRecipeIngredients(ctx.business.id, recipe.data);
+  if (recipeError) return NextResponse.json({ error: recipeError }, { status: 400 });
 
   const service = await prisma.service.create({
     data: {

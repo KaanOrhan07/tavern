@@ -14,11 +14,13 @@ const schema = z.discriminatedUnion("mode", [
     slug: z.string().min(1),
     email: z.string().email(),
     password: z.string().min(1),
+    remember: z.boolean().optional(),
   }),
   z.object({
     mode: z.literal("staff"),
     slug: z.string().min(1),
     pin: z.string().regex(/^\d{4,8}$/),
+    remember: z.boolean().optional(),
   }),
 ]);
 
@@ -90,6 +92,7 @@ export async function POST(request: Request) {
       businessSlug: business.slug,
       name: user.name,
       sessionVersion: user.sessionVersion,
+      remember: data.remember === true,
     });
     await writeAuditLog({
       businessId: business.id,
@@ -170,6 +173,7 @@ export async function POST(request: Request) {
     businessSlug: business.slug,
     name: staff.name,
     sessionVersion: staff.sessionVersion,
+    remember: data.remember === true,
   });
   await writeAuditLog({
     businessId: business.id,

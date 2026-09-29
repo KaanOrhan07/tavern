@@ -8,7 +8,16 @@
     "theme": "المظهر",
     "campaigns": "الحملات",
     "customers": "العملاء",
-    "reports": "التقارير"
+    "reports": "التقارير",
+    "tables": "الطاولات",
+    "menu": "القائمة",
+    "stock": "المخزون",
+    "staff": "الموظفون",
+    "dayEnd": "إغلاق اليوم",
+    "requests": "طلبات الموظفين",
+    "appointments": "المواعيد",
+    "services": "الخدمات",
+    "locales": "اللغات"
   },
   "common": {
     "save": "حفظ",
@@ -16,7 +25,15 @@
     "delete": "حذف",
     "edit": "تعديل",
     "loading": "جارٍ التحميل...",
-    "search": "بحث"
+    "search": "بحث",
+    "add": "إضافة",
+    "error": "حدث خطأ",
+    "success": "تمت العملية بنجاح",
+    "confirm": "تأكيد",
+    "back": "رجوع",
+    "logout": "تسجيل الخروج",
+    "noResults": "لم يتم العثور على نتائج",
+    "language": "اللغة"
   },
   "appointmentStatus": {
     "PENDING_BUSINESS_APPROVAL": "بانتظار الموافقة",

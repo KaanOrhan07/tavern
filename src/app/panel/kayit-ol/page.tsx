@@ -1,3 +1,4 @@
+import { safeNextPath } from "@/lib/safe-redirect";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -13,7 +14,7 @@ export default async function PanelMusteriKayitPage({
 }) {
   const session = await getCustomerSession();
   const { next } = await searchParams;
-  const nextPath = next && next.startsWith("/") ? next : "/panel/hesabim";
+  const nextPath = safeNextPath(next);
   if (session) redirect(nextPath);
 
   return (

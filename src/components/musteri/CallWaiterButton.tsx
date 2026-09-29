@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { fetchWithGeo } from "@/lib/geo-client";
 
 export function CallWaiterButton({ qrToken }: { qrToken: string }) {
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
@@ -8,11 +9,12 @@ export function CallWaiterButton({ qrToken }: { qrToken: string }) {
   async function callWaiter() {
     if (status === "sending") return;
     setStatus("sending");
-    const res = await fetch("/api/public/call-waiter", {
+    const { res, geoMessage } = await fetchWithGeo(qrToken, "/api/public/call-waiter", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ qrToken }),
     });
+    if (!res.ok && geoMessage) alert(geoMessage);
     setStatus(res.ok ? "sent" : "idle");
     if (res.ok) {
       setTimeout(() => setStatus("idle"), 15_000);

@@ -5,7 +5,7 @@ import { isBarberBusiness } from "@/lib/business-modules";
 import { getAvailableSlots, getBarberSettings } from "@/lib/appointments";
 import { formatDateInTz } from "@/lib/business-timezone";
 import { normalizePhone } from "@/lib/loyalty";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimitAsync } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit";
 import { getCustomerSession } from "@/lib/customer-auth";
 
@@ -21,7 +21,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   const ip = clientIp(request);
-  const limited = rateLimit(`appointment:${ip}`, { limit: 20, windowMs: 15 * 60 * 1000 });
+  const limited = await rateLimitAsync(`appointment:${ip}`, { limit: 20, windowMs: 15 * 60 * 1000 });
   if (!limited.ok) {
     return NextResponse.json({ error: "Çok fazla istek" }, { status: 429 });
   }
@@ -139,6 +139,7 @@ export async function POST(request: Request) {
     data: {
       businessId: business.id,
       type: "NEW_APPOINTMENT",
+      targetUserId: staff.id,
       message: `Yeni talep — ${staff.name}: ${service.name} — ${appointment.customerName} (${appointment.startAt.toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })})`,
     },
   });

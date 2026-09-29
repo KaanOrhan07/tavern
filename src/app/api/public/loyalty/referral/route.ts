@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { attachReferralCode } from "@/lib/loyalty";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimitAsync } from "@/lib/rate-limit";
 
 const schema = z.object({
   slug: z.string().min(1),
@@ -12,7 +12,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   const ip = clientIp(request);
-  const limited = rateLimit(`loyalty-referral:${ip}`, { limit: 20, windowMs: 15 * 60 * 1000 });
+  const limited = await rateLimitAsync(`loyalty-referral:${ip}`, { limit: 20, windowMs: 15 * 60 * 1000 });
   if (!limited.ok) {
     return NextResponse.json({ error: "Çok fazla istek" }, { status: 429 });
   }

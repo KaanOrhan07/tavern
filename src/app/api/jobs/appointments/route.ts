@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { checkCronAuth } from "@/lib/cron-auth";
 import {
   archiveAllPastAppointments,
   expirePendingAppointments,
@@ -6,27 +7,21 @@ import {
 } from "@/lib/appointments";
 
 /**
- * Cron / harici scheduler: Authorization: Bearer $CRON_SECRET
- * Expire + hatırlatma + gün sonu arşivi.
+ * Zamanlayıcı: pg_cron + pg_net (bkz. supabase/pg_cron.sql) her 5 dakikada POST atar.
+ * Authorization: Bearer $CRON_SECRET. Expire + 1 saat kala müşteri SMS'i + gün sonu arşivi.
  */
 export async function POST(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: "CRON_SECRET tanımlı değil" }, { status: 503 });
-  }
-  const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
-  }
+  const denied = checkCronAuth(request);
+  if (denied) return denied;
 
-  const [expired, reminders, archived] = await Promise.all([
-    expirePendingAppointments(),
-    sendAppointmentReminders(),
-    archiveAllPastAppointments(),
-  ]);
+  // Sıralı çalışır: expire → hatırlatma → arşiv (birbirinin verisini okuyabilir)
+  const expired = await expirePendingAppointments();
+  const reminders = await sendAppointmentReminders();
+  const archived = await archiveAllPastAppointments();
   return NextResponse.json({ ok: true, expired, reminders, archived });
 }
 
+// pg_net http_post kullanır; GET yalnızca elle test için (aynı yetkilendirme)
 export async function GET(request: Request) {
   return POST(request);
 }

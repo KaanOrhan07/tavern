@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { formatKurus } from "@/lib/utils";
 import { parseCartKey } from "@/lib/cart-key";
 import { LoyaltyCheckout } from "@/components/musteri/LoyaltyCheckout";
+import { fetchWithGeo } from "@/lib/geo-client";
 
 export function CartBar({
   qrToken,
@@ -42,7 +43,7 @@ export function CartBar({
 
   async function submit() {
     setSubmitting(true);
-    const res = await fetch("/api/public/orders", {
+    const { res, geoMessage } = await fetchWithGeo(qrToken, "/api/public/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -66,7 +67,7 @@ export function CartBar({
       onSubmitted({ ok: true, message: "Siparişiniz alındı, afiyet olsun!" });
     } else {
       const data = await res.json().catch(() => null);
-      onSubmitted({ ok: false, message: data?.error ?? "Sipariş verilemedi" });
+      onSubmitted({ ok: false, message: geoMessage ?? data?.error ?? "Sipariş verilemedi" });
     }
     setSubmitting(false);
   }

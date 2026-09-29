@@ -102,12 +102,12 @@ export function CreateBusinessForm({
                     />
                   </div>
                   <div>
-                    <Label>Geçici Şifre (en az 6 karakter)</Label>
+                    <Label>Geçici Şifre (en az 10 karakter, harf + rakam)</Label>
                     <Input
                       type="password"
                       value={form.ownerPassword}
                       onChange={(e) => setForm({ ...form, ownerPassword: e.target.value })}
-                      minLength={6}
+                      minLength={10}
                       required
                     />
                   </div>

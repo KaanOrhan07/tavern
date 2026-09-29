@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
+import { getGeofence } from "@/lib/geofence";
 
 const schema = z.object({
   orderMode: z.enum(["WAITER_ONLY", "CUSTOMER_QR"]).optional(),
@@ -42,6 +43,19 @@ export async function PATCH(request: Request) {
       body.data.kitchenCompletedClearMinutes === undefined)
   ) {
     return NextResponse.json({ error: "Geçersiz istek" }, { status: 400 });
+  }
+  // Konum şart: müşteri QR siparişi yalnızca Google Maps konumu tanımlı + konum kısıtı açıkken açılabilir
+  if (body.data.orderMode === "CUSTOMER_QR") {
+    const fence = await getGeofence(ctx.business.id);
+    if (!fence) {
+      return NextResponse.json(
+        {
+          error:
+            "Müşteri QR siparişi için önce Ayarlar → İşletme Bilgisi'nden Google Maps linkini kaydedin ve konum kısıtını açın. Müşterilerin evden sipariş vermesini bu engeller.",
+        },
+        { status: 400 }
+      );
+    }
   }
   await prisma.business.update({
     where: { id: ctx.business.id },

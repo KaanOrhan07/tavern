@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { registerCustomerProfile } from "@/lib/customer-auth";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimitAsync } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit";
 
 const schema = z.object({
@@ -12,7 +12,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   const ip = clientIp(request);
-  const limited = rateLimit(`customer-register:${ip}`, { limit: 10, windowMs: 15 * 60 * 1000 });
+  const limited = await rateLimitAsync(`customer-register:${ip}`, { limit: 10, windowMs: 15 * 60 * 1000 });
   if (!limited.ok) {
     return NextResponse.json({ error: "Çok fazla istek" }, { status: 429 });
   }
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       action: "CREATE",
       entityType: "CustomerProfile",
       entityId: result.profileId,
-      afterData: { phone: result.phone },
+      // Telefon numarası KVKK gereği log'a yazılmaz
       ipAddress: ip,
     });
     return NextResponse.json({

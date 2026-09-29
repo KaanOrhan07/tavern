@@ -44,6 +44,7 @@ export async function GET() {
     productName: item.productName,
     quantity: item.quantity,
     note: item.note,
+    status: item.status,
     createdAt: item.createdAt.toISOString(),
     preparedAt: item.preparedAt?.toISOString() ?? null,
   });

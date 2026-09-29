@@ -18,6 +18,13 @@ const schema = z
       .union([z.literal(30), z.literal(60), z.literal(180), z.literal(720)])
       .optional()
       .default(60),
+    workDays: z
+      .array(z.number().int().min(0).max(6))
+      .min(1, "En az bir çalışma günü seçin")
+      .max(7)
+      .transform((d) => [...new Set(d)])
+      .optional()
+      .default([1, 2, 3, 4, 5, 6, 0]),
   })
   .refine((d) => parseHm(d.openTime) < parseHm(d.closeTime), {
     message: "Açılış saati kapanıştan önce olmalı",
@@ -46,6 +53,7 @@ export async function GET() {
       openTime: "09:00",
       closeTime: "20:00",
       responseTimeoutMinutes: 60,
+      workDays: [1, 2, 3, 4, 5, 6, 0],
     },
   });
 }

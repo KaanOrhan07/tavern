@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { Badge, Card, EmptyState } from "@/components/ui";
+import { formatKurus, todayRange } from "@/lib/utils";
 import { CreateBusinessForm } from "@/components/admin/CreateBusinessForm";
 import { AdminBusinessFilters } from "@/components/admin/AdminBusinessFilters";
 
@@ -19,14 +20,24 @@ export default async function BusinessListPage({
   if (active === "true") where.active = true;
   if (active === "false") where.active = false;
 
-  const [businesses, types] = await Promise.all([
+  const { start, end } = todayRange();
+  const [businesses, types, staffCounts, todayRevenue] = await Promise.all([
     prisma.business.findMany({
       where,
-      include: { type: true },
+      include: { type: true, subscription: { select: { paymentStatus: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.businessType.findMany({ where: { active: true } }),
+    prisma.user.groupBy({ by: ["businessId"], where: { role: "STAFF" }, _count: { _all: true } }),
+    prisma.payment.groupBy({
+      by: ["businessId"],
+      where: { createdAt: { gte: start, lt: end } },
+      _sum: { amountKurus: true },
+    }),
   ]);
+  const staffByBiz = new Map(staffCounts.map((r) => [r.businessId, r._count._all]));
+  const revenueByBiz = new Map(todayRevenue.map((r) => [r.businessId, r._sum.amountKurus ?? 0]));
+  const PAY_LABEL: Record<string, string> = { current: "Ödeme güncel", pending: "Ödeme bekliyor", overdue: "Ödeme gecikmiş" };
 
   return (
     <div className="space-y-6">
@@ -59,6 +70,15 @@ export default async function BusinessListPage({
                   <Badge tone={b.active ? "ok" : "danger"}>
                     {b.active ? "Aktif" : "Pasif"}
                   </Badge>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-cream-dim">
+                  <span>{staffByBiz.get(b.id) ?? 0} personel</span>
+                  <span>Bugün: {formatKurus(revenueByBiz.get(b.id) ?? 0)}</span>
+                  {b.subscription && b.subscription.paymentStatus !== "current" && (
+                    <Badge tone={b.subscription.paymentStatus === "overdue" ? "danger" : "warn"}>
+                      {PAY_LABEL[b.subscription.paymentStatus] ?? b.subscription.paymentStatus}
+                    </Badge>
+                  )}
                 </div>
               </Card>
             </Link>

@@ -24,6 +24,7 @@ export async function GET(request: Request) {
   }
 
   const info = business.businessInfo;
+  const hasCoords = info?.latitude != null && info?.longitude != null;
   return NextResponse.json({
     ok: true,
     business: {
@@ -31,11 +32,18 @@ export async function GET(request: Request) {
       slug: business.slug,
       hours,
       address: info?.address ?? null,
-      latitude: info?.latitude ?? null,
-      longitude: info?.longitude ?? null,
+      // Yol tarifi için işletmenin yapıştırdığı orijinal Google Maps linki öncelikli
+      mapsUrl:
+        info?.mapsUrl ??
+        (hasCoords
+          ? `https://www.google.com/maps/dir/?api=1&destination=${info!.latitude},${info!.longitude}`
+          : null),
       phone: info?.phone ?? null,
       instagramUrl: info?.instagramUrl ?? null,
       tiktokUrl: info?.tiktokUrl ?? null,
+      youtubeUrl: info?.youtubeUrl ?? null,
+      facebookUrl: info?.facebookUrl ?? null,
+      linkedinUrl: info?.linkedinUrl ?? null,
       websiteUrl: info?.websiteUrl ?? null,
       description: info?.description ?? null,
     },

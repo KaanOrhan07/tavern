@@ -14,6 +14,8 @@ type Row = {
   paymentStatus: string;
   lastPaymentDate: string | null;
   nextPaymentDate: string | null;
+  paymentWindowStart: string | null;
+  paymentWindowDays: number;
   monthlyFeeKurus: number | null;
 };
 
@@ -29,6 +31,9 @@ export default function AdminSubscriptionsPage() {
   const [payBusinessId, setPayBusinessId] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [windowId, setWindowId] = useState<string | null>(null);
+  const [windowDate, setWindowDate] = useState("");
+  const [windowDays, setWindowDays] = useState("7");
 
   const load = useCallback(async () => {
     const params = filter ? `?status=${filter}` : "";
@@ -51,6 +56,30 @@ export default function AdminSubscriptionsPage() {
       body: JSON.stringify({ businessId, paymentStatus }),
     });
     await load();
+  }
+
+  async function saveWindow(businessId: string) {
+    const days = Number(windowDays);
+    if (!windowDate || !Number.isInteger(days) || days < 1 || days > 31) {
+      setMessage("Başlangıç tarihi ve 1–31 arası gün sayısı girin");
+      return;
+    }
+    const res = await fetch("/api/admin/subscriptions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        businessId,
+        paymentWindowStart: new Date(windowDate + "T09:00:00+03:00").toISOString(),
+        paymentWindowDays: days,
+      }),
+    });
+    if (res.ok) {
+      setMessage("Ödeme penceresi kaydedildi");
+      setWindowId(null);
+      await load();
+    } else {
+      setMessage("Pencere kaydedilemedi");
+    }
   }
 
   async function recordPayment() {
@@ -114,6 +143,12 @@ export default function AdminSubscriptionsPage() {
                     {" · "}
                     Aylık: {b.monthlyFeeKurus != null ? formatKurus(b.monthlyFeeKurus) : "—"}
                   </p>
+                  <p className="mt-1 text-xs text-cream-dim">
+                    Ödeme penceresi:{" "}
+                    {b.paymentWindowStart
+                      ? `${new Date(b.paymentWindowStart).toLocaleDateString("tr-TR")} · ${b.paymentWindowDays} gün`
+                      : "tanımlı değil"}
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={statusTone(b.paymentStatus)}>{b.paymentStatus}</Badge>
@@ -123,11 +158,40 @@ export default function AdminSubscriptionsPage() {
                   <Button type="button" variant="ghost" onClick={() => setStatus(b.id, "current")}>
                     Güncel
                   </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setWindowId(windowId === b.id ? null : b.id);
+                      setWindowDate(b.paymentWindowStart ? b.paymentWindowStart.slice(0, 10) : "");
+                      setWindowDays(String(b.paymentWindowDays));
+                    }}
+                  >
+                    Ödeme penceresi
+                  </Button>
                   <Button type="button" onClick={() => setPayBusinessId(b.id)}>
                     Ödeme kaydet
                   </Button>
                 </div>
               </div>
+              {windowId === b.id && (
+                <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-ink-line pt-3">
+                  <div>
+                    <Label>Pencere başlangıcı</Label>
+                    <Input type="date" value={windowDate} onChange={(e) => setWindowDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Süre (gün)</Label>
+                    <Input value={windowDays} onChange={(e) => setWindowDays(e.target.value)} className="w-24" />
+                  </div>
+                  <Button type="button" onClick={() => saveWindow(b.id)}>
+                    Kaydet
+                  </Button>
+                  <p className="basis-full text-[11px] text-cream-dim">
+                    Başlangıçtan 3 gün önce size panel bildirimi, pencere açılınca işletmeye SMS + panel bildirimi gider.
+                  </p>
+                </div>
+              )}
               {payBusinessId === b.id && (
                 <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-ink-line pt-3">
                   <div>

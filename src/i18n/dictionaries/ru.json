@@ -8,7 +8,16 @@
     "theme": "Тема",
     "campaigns": "Акции",
     "customers": "Клиенты",
-    "reports": "Отчёты"
+    "reports": "Отчёты",
+    "tables": "Столы",
+    "menu": "Меню",
+    "stock": "Склад",
+    "staff": "Персонал",
+    "dayEnd": "Закрытие дня",
+    "requests": "Запросы",
+    "appointments": "Записи",
+    "services": "Услуги",
+    "locales": "Языки"
   },
   "common": {
     "save": "Сохранить",
@@ -16,7 +25,15 @@
     "delete": "Удалить",
     "edit": "Изменить",
     "loading": "Загрузка...",
-    "search": "Поиск"
+    "search": "Поиск",
+    "add": "Добавить",
+    "error": "Произошла ошибка",
+    "success": "Успешно",
+    "confirm": "Подтвердить",
+    "back": "Назад",
+    "logout": "Выйти",
+    "noResults": "Ничего не найдено",
+    "language": "Язык"
   },
   "appointmentStatus": {
     "PENDING_BUSINESS_APPROVAL": "Ожидает подтверждения",

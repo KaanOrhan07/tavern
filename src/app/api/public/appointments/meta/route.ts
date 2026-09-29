@@ -36,6 +36,9 @@ export async function GET(request: Request) {
       openTime: "09:00",
       closeTime: "20:00",
     },
+    workDays: business.barberSettings?.workDays?.length
+      ? business.barberSettings.workDays
+      : [1, 2, 3, 4, 5, 6, 0],
     services,
     staff,
   });

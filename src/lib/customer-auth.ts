@@ -4,10 +4,14 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { hashPin, validatePinFormat, verifyPinHash } from "@/lib/pin";
 import { normalizePhone } from "@/lib/loyalty";
+import { sendSms } from "@/lib/sms";
+import { rateLimitAsync } from "@/lib/rate-limit";
 
 export const CUSTOMER_COOKIE = "tavern_customer";
 const OTP_TTL_SEC = 10 * 60;
-const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
+/** "Beni hatırla" işaretliyse 90 gün, değilse tarayıcı kapanınca biten oturum çerezi (token 24 saat). */
+const REMEMBER_MAX_AGE = 60 * 60 * 24 * 90;
+type OtpPurpose = "customer_otp" | "customer_pin_reset";
 
 export type CustomerSession = {
   role: "customer";
@@ -33,27 +37,55 @@ function otpDebugEnabled() {
   );
 }
 
-export async function createOtpChallenge(phone: string) {
-  const otp = String(randomInt(100000, 999999));
+export async function createOtpChallenge(phone: string, purpose: OtpPurpose = "customer_otp") {
+  const otp = String(randomInt(100000, 1000000));
   const token = await new SignJWT({
     phone,
     otpHash: hashOtp(otp),
-    purpose: "customer_otp",
+    purpose,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${OTP_TTL_SEC}s`)
     .sign(secretKey());
 
-  return { challengeToken: token, debugOtp: otpDebugEnabled() ? otp : undefined };
+  return { challengeToken: token, otp, debugOtp: otpDebugEnabled() ? otp : undefined };
 }
 
-export async function verifyOtpChallenge(challengeToken: string, otp: string, phone: string) {
+/** Kodu SMS ile gönderir. Aynı numaraya kısa sürede tekrar gönderim sınırlıdır (SMS maliyeti/kötüye kullanım). */
+export async function issueOtp(phone: string, purpose: OtpPurpose = "customer_otp") {
+  const limited = await rateLimitAsync(`otp-send:${purpose}:${phone}`, {
+    limit: 3,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!limited.ok) throw new Error("Çok fazla kod istendi, birkaç dakika sonra tekrar deneyin");
+
+  const { otp, ...challenge } = await createOtpChallenge(phone, purpose);
+  const text =
+    purpose === "customer_pin_reset"
+      ? `Tavern PIN sıfırlama kodunuz: ${otp}. Kimseyle paylaşmayın.`
+      : `Tavern doğrulama kodunuz: ${otp}. Kimseyle paylaşmayın.`;
+  await sendSms(phone, text, "otp");
+  return challenge;
+}
+
+export async function verifyOtpChallenge(
+  challengeToken: string,
+  otp: string,
+  phone: string,
+  purpose: OtpPurpose = "customer_otp"
+) {
+  // Deneme sayısı telefon başına sınırlı (6 haneli kod brute-force'a karşı)
+  const limited = await rateLimitAsync(`otp-verify:${phone}`, { limit: 6, windowMs: 10 * 60 * 1000 });
+  if (!limited.ok) return false;
   try {
+    // ⚠️ TEST AŞAMASI: debug modunda (dev veya CUSTOMER_OTP_DEBUG=1) "000000" her zaman geçerli.
+    // Netgsm canlıya alındığında CUSTOMER_OTP_DEBUG env'ini KALDIRIN (bu blok prod'da devre dışı kalır).
+    const bypass = otpDebugEnabled() && otp === "000000";
     const { payload } = await jwtVerify(challengeToken, secretKey());
-    if (payload.purpose !== "customer_otp") return false;
+    if (payload.purpose !== purpose) return false;
     if (payload.phone !== phone) return false;
-    return payload.otpHash === hashOtp(otp);
+    return bypass || payload.otpHash === hashOtp(otp);
   } catch {
     return false;
   }
@@ -95,7 +127,7 @@ export async function registerCustomerProfile(input: {
         },
       });
 
-  const challenge = await createOtpChallenge(phone);
+  const challenge = await issueOtp(phone);
   return { profileId: profile.id, phone, ...challenge };
 }
 
@@ -148,7 +180,10 @@ export async function loginCustomer(input: { phone: string; pin: string }) {
   });
 }
 
-export async function createCustomerSessionToken(profile: { id: string; phone: string }) {
+export async function createCustomerSessionToken(
+  profile: { id: string; phone: string },
+  remember = false
+) {
   return new SignJWT({
     role: "customer",
     profileId: profile.id,
@@ -156,17 +191,62 @@ export async function createCustomerSessionToken(profile: { id: string; phone: s
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("30d")
+    .setExpirationTime(remember ? "90d" : "24h")
     .sign(secretKey());
 }
 
-export async function setCustomerSessionCookie(token: string) {
+export async function setCustomerSessionCookie(token: string, remember = false) {
   (await cookies()).set(CUSTOMER_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: SESSION_MAX_AGE,
+    // maxAge yok → oturum çerezi: tarayıcı kapanınca biter
+    ...(remember ? { maxAge: REMEMBER_MAX_AGE } : {}),
+  });
+}
+
+/** PIN sıfırlama: telefon kayıtlıysa SMS gider. Hesabın varlığı ifşa edilmez (her zaman aynı yanıt). */
+export async function requestPinReset(rawPhone: string) {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) throw new Error("Geçersiz telefon numarası");
+  const profile = await prisma.customerProfile.findUnique({ where: { phone } });
+  if (profile?.phoneVerified && profile.accountStatus === "active") {
+    return issueOtp(phone, "customer_pin_reset");
+  }
+  // Var olmayan hesap için de geçerli görünen ama doğrulanamayacak bir challenge döner
+  const { otp: _unused, ...challenge } = await createOtpChallenge(phone, "customer_pin_reset");
+  void _unused;
+  return { ...challenge, debugOtp: undefined };
+}
+
+export async function confirmPinReset(input: {
+  phone: string;
+  otp: string;
+  challengeToken: string;
+  newPin: string;
+}) {
+  const phone = normalizePhone(input.phone);
+  if (!phone) throw new Error("Geçersiz telefon");
+  const pinErr = validatePinFormat(input.newPin);
+  if (pinErr) throw new Error(pinErr);
+  if (!/^d{6}$/.test(input.newPin)) throw new Error("PIN 6 haneli olmalı");
+
+  const ok = await verifyOtpChallenge(input.challengeToken, input.otp, phone, "customer_pin_reset");
+  if (!ok) throw new Error("Doğrulama kodu hatalı veya süresi dolmuş");
+
+  const profile = await prisma.customerProfile.findUnique({ where: { phone } });
+  if (!profile || !profile.phoneVerified || profile.accountStatus !== "active") {
+    throw new Error("Doğrulama kodu hatalı veya süresi dolmuş");
+  }
+  return prisma.customerProfile.update({
+    where: { id: profile.id },
+    data: {
+      pinHash: await hashPin(input.newPin),
+      forcePinChange: false,
+      failedPinAttempts: 0,
+      lockedUntil: null,
+    },
   });
 }
 

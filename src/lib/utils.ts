@@ -1,8 +1,11 @@
+import { addDaysYmd, todayYmdInTz, zonedLocalToUtc } from "@/lib/business-timezone";
 /** Müşteri hesap route'ları — işletme slug olarak kullanılamaz. */
 export const RESERVED_BUSINESS_SLUGS = new Set([
   "giris-yap",
   "kayit-ol",
   "hesabim",
+  "pin-sifirla",
+  "hesap",
   "admin",
   "api",
   "panel",
@@ -50,11 +53,14 @@ export function formatDateTr(date: Date): string {
   }).format(date);
 }
 
-/** Bugünün (yerel) başlangıç ve bitişini döndürür — gün sonu raporu için. */
+/**
+ * Bugünün başlangıç ve bitişi — işletme saat diliminde (Europe/Istanbul).
+ * (2.2.1: sunucu UTC'de çalışırken 00:00–03:00 TR arası "dün" sayılıyordu.)
+ */
 export function todayRange(): { start: Date; end: Date } {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return { start, end };
+  const today = todayYmdInTz();
+  return {
+    start: zonedLocalToUtc(today, "00:00"),
+    end: zonedLocalToUtc(addDaysYmd(today, 1), "00:00"),
+  };
 }

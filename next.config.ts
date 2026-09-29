@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Günlük rapor PDF'i için gömülü Türkçe font dosyaları serverless paketine dahil edilir
+  outputFileTracingIncludes: {
+    "/api/panel/reports/daily-pdf": ["./src/assets/fonts/**"],
+  },
   // Büyük paketlerin import süresini kısaltır
   experimental: {
     optimizePackageImports: ["qrcode"],

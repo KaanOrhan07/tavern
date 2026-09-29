@@ -3,6 +3,8 @@ import sharp from "sharp";
 import { mediaProxyUrl } from "@/lib/storage-url";
 
 const BUCKET = "product-images";
+/** Vercel gövde sınırı (~4,5 MB) altında kalmak için */
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 function supabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,6 +19,9 @@ async function compressImage(
   maxHeight: number,
   quality: number
 ) {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error("Fotoğraf en fazla 4 MB olabilir");
+  }
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     return await sharp(buffer)

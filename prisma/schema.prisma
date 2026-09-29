@@ -49,6 +49,7 @@ model Business {
   logoUrl   String?   // İşletme logosu (müşteri menüsü)
   bannerUrl String?   // İşletme banner görseli (müşteri menüsü)
   kitchenCompletedClearMinutes Int @default(30) // Adisyon: tamamlanan kartların ekranda kalma süresi
+  geofenceEnabled Boolean @default(true) // 2.2.1: QR menü 100 m konum kısıtı (koordinat varsa)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -119,6 +120,7 @@ model User {
   name           String
   email          String?  @unique // sadece OWNER için
   passwordHash   String? // sadece OWNER için
+  passwordEncrypted String? // 2.2.1: AES-256-GCM geri döndürülebilir kopya (sadece ana admin görür)
   pin            String? // DEPRECATED: düz metin PIN — migration sonrası kaldırılacak
   pinHash        String? // bcrypt hash (STAFF)
   pinFingerprint String? // HMAC ile işletme içi benzersizlik
@@ -465,6 +467,7 @@ enum NotificationType {
   APPOINTMENT_RESCHEDULE
   APPOINTMENT_REMINDER
   APPOINTMENT_EXPIRED
+  PAYMENT_DUE
 }
 
 model Notification {
@@ -473,6 +476,7 @@ model Notification {
   business   Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
   type       NotificationType
   message    String
+  targetUserId String? // 2.2.1: doluysa yalnızca bu personele (ve işletme sahibine) görünür
   readAt     DateTime?
   createdAt  DateTime         @default(now())
 
@@ -523,6 +527,7 @@ model BarberSettings {
   openTime               String   @default("09:00") // HH:mm
   closeTime              String   @default("20:00") // HH:mm
   responseTimeoutMinutes Int      @default(60) // randevu talebine yanıt süresi
+  workDays               Int[]    @default([1, 2, 3, 4, 5, 6, 0]) // 0=Pazar … 6=Cumartesi (2.2.1)
   updatedAt              DateTime @updatedAt
 }
 
@@ -732,7 +737,11 @@ enum AdminRole {
 model AdminUser {
   id              String    @id @default(cuid())
   name            String
+  firstName       String?
+  lastName        String?
   email           String    @unique
+  keyFingerprint  String?   @unique // HMAC(adminKey) — giriş anahtarı düz metin saklanmaz
+  createdByLabel  String?   // hangi admin oluşturdu
   passwordHash    String
   role            AdminRole @default(SUPER_ADMIN)
   active          Boolean   @default(true)
@@ -980,6 +989,10 @@ model BusinessInfo {
   instagramUrl String?
   tiktokUrl    String?
   websiteUrl   String?
+  youtubeUrl   String?
+  facebookUrl  String?
+  linkedinUrl  String?
+  mapsUrl      String? // 2.2.1: Google Maps işletme linki (koordinat bundan çıkarılır)
   description  String?
   updatedAt    DateTime @updatedAt
 }
@@ -993,6 +1006,10 @@ model BusinessSubscription {
   nextPaymentDate DateTime?
   monthlyFeeKurus Int?
   notes           String?
+  paymentWindowStart DateTime? // 2.2.1: ödeme penceresi başlangıcı
+  paymentWindowDays  Int       @default(7)
+  businessNotifiedAt DateTime? // pencere için işletmeye bildirim gönderildi
+  adminNotifiedAt    DateTime? // pencereden 3 gün önce ana admin uyarıldı
   updatedAt       DateTime  @updatedAt
 }
 
@@ -1041,4 +1058,25 @@ model LoyaltyTransaction {
 
   @@index([businessId, createdAt])
   @@index([loyaltyAccountId, createdAt])
+}
+
+// ============ 2.2.1 ============
+
+/// Anahtar-değer sistem ayarları (ör. şifrelenmiş Groq API key)
+model SystemSetting {
+  key       String   @id
+  valueEnc  String
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+/// Ana admin panel içi bildirimleri (ör. ödeme günü yaklaşıyor)
+model AdminNotification {
+  id         String    @id @default(cuid())
+  message    String
+  businessId String?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([createdAt])
 }

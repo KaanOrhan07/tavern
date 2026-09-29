@@ -9,6 +9,7 @@ export function CustomerLoginForm({ nextPath = "/panel/hesabim" }: { nextPath?: 
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -19,7 +20,7 @@ export function CustomerLoginForm({ nextPath = "/panel/hesabim" }: { nextPath?: 
     const res = await fetch("/api/public/customer/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, pin }),
+      body: JSON.stringify({ phone, pin, remember }),
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
@@ -61,9 +62,23 @@ export function CustomerLoginForm({ nextPath = "/panel/hesabim" }: { nextPath?: 
             required
           />
         </div>
+        <label className="flex items-center gap-2 text-sm text-cream-dim">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="h-4 w-4 accent-gold"
+          />
+          Beni hatırla (90 gün)
+        </label>
         <Button type="submit" disabled={loading} className="w-full">
           {loading ? "Giriş yapılıyor..." : "Giriş yap"}
         </Button>
+        <p className="text-center text-sm">
+          <Link href="/panel/pin-sifirla" className="text-gold hover:underline">
+            PIN&apos;imi unuttum
+          </Link>
+        </p>
       </form>
       <p className="text-sm text-cream-dim">
         Hesabın yok mu?{" "}
@@ -82,6 +97,7 @@ export function CustomerRegisterForm({ nextPath = "/panel/hesabim" }: { nextPath
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
   const [otp, setOtp] = useState("");
+  const [remember, setRemember] = useState(true);
   const [challengeToken, setChallengeToken] = useState("");
   const [debugOtp, setDebugOtp] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +131,7 @@ export function CustomerRegisterForm({ nextPath = "/panel/hesabim" }: { nextPath
     const res = await fetch("/api/public/customer/verify-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, otp, challengeToken }),
+      body: JSON.stringify({ phone, otp, challengeToken, remember }),
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
@@ -152,6 +168,15 @@ export function CustomerRegisterForm({ nextPath = "/panel/hesabim" }: { nextPath
               required
             />
           </div>
+          <label className="flex items-center gap-2 text-sm text-cream-dim">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="h-4 w-4 accent-gold"
+            />
+            Beni hatırla (90 gün)
+          </label>
           <Button type="submit" disabled={loading || otp.length !== 6} className="w-full">
             {loading ? "Doğrulanıyor..." : "Hesabı aç"}
           </Button>

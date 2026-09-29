@@ -76,7 +76,8 @@ export function CustomerMenuApp({
   if (welcome) {
     return (
       <div className="relative" dir={isRtlLocale(locale) ? "rtl" : "ltr"}>
-        <div className="pointer-events-auto absolute end-4 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex items-center gap-2">
+        {/* fixed: karşılama katmanı da fixed olduğu için kontroller görünüm alanına sabitlenir (logoyla çakışmaz) */}
+        <div className="pointer-events-auto fixed end-4 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex items-center gap-2">
           <CustomerAccountChip returnTo={`/${slug}`} />
           {langControl}
         </div>
