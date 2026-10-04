@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { getCustomerSession } from "@/lib/customer-auth";
+import { getCustomerSession, otpRequired } from "@/lib/customer-auth";
 import { safeNextPath } from "@/lib/safe-redirect";
 import { CustomerLoginForm } from "@/components/musteri/CustomerAuthForms";
 
@@ -22,7 +22,7 @@ export default async function PanelMusteriGirisPage({
       <Link href="/panel/hesabim" className="mb-6 flex items-center gap-2">
         <Image src="/tavern-logo.png" alt="Tavern" width={80} height={40} className="h-7 w-auto" />
       </Link>
-      <CustomerLoginForm nextPath={nextPath} />
+      <CustomerLoginForm nextPath={nextPath} pinResetEnabled={otpRequired()} />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAdmin, isGuardError } from "@/lib/guard";
 import { writeAdminAudit } from "@/lib/audit";
 import { getGroqKeyStatus, setGroqApiKey } from "@/lib/settings";
-import { isEncryptionConfigured } from "@/lib/crypto";
+import { isEncryptionConfigured, usingDedicatedKey } from "@/lib/crypto";
 
 export async function GET() {
   const ctx = await requireAdmin({ superOnly: true });
@@ -11,6 +11,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     encryptionConfigured: isEncryptionConfigured(),
+    dedicatedKey: usingDedicatedKey(),
     ...(await getGroqKeyStatus()),
   });
 }
@@ -22,7 +23,7 @@ export async function PUT(request: Request) {
   const ctx = await requireAdmin({ superOnly: true });
   if (isGuardError(ctx)) return ctx;
   if (!isEncryptionConfigured()) {
-    return NextResponse.json({ error: "CREDENTIAL_ENCRYPTION_KEY tanımlı değil" }, { status: 503 });
+    return NextResponse.json({ error: "Şifreleme anahtarı yok (AUTH_SECRET tanımlı değil)" }, { status: 503 });
   }
   const body = schema.safeParse(await request.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Geçersiz key" }, { status: 400 });

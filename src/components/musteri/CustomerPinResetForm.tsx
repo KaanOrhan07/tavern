@@ -74,7 +74,7 @@ export function CustomerPinResetForm() {
         <div>
           <h1 className="text-xl font-semibold">Yeni PIN belirle</h1>
           <p className="mt-1 text-sm text-cream-dim">
-            Numara kayıtlıysa SMS ile kod gönderildi. Kodu ve yeni PIN&apos;ini gir.
+            Numara kayıtlıysa kayıtlı e-posta adresine kod gönderildi (spam klasörüne de bak). Kodu ve yeni PIN&apos;ini gir.
           </p>
           {debugOtp && (
             <p className="mt-2 rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-sm text-gold">
@@ -110,7 +110,7 @@ export function CustomerPinResetForm() {
     <Card className="space-y-4 p-5">
       <div>
         <h1 className="text-xl font-semibold">PIN&apos;ini mi unuttun?</h1>
-        <p className="mt-1 text-sm text-cream-dim">Telefon numaranı gir, SMS ile doğrulama kodu gönderelim.</p>
+        <p className="mt-1 text-sm text-cream-dim">Telefon numaranı gir, kayıtlı e-postana doğrulama kodu gönderelim.</p>
       </div>
       <form onSubmit={requestCode} className="space-y-3">
         {error && <p className="text-sm text-danger">{error}</p>}

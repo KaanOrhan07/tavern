@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.2 — Ekim 2026
+
+- **Menü Excel:** Ayarlar'da mevcut menüyü indir / boş şablonu indir / Excel'den toplu yükle. Önizleme (kaydetmez) → içe aktar; kategori otomatik, aynı kategori+ürün güncellenir, varyantlar `Ad=Fiyat; …`, formül enjeksiyonu korumalı, en fazla 1000 satır / 2 MB, silme yok
+- **Ücretsiz doğrulama kanalı:** Müşteri kaydında e-posta alınır; doğrulama ve PIN sıfırlama kodu e-postayla gider (Brevo veya Resend; SMS ancak Netgsm tanımlıysa ek olarak). Yeni sütun: `CustomerProfile.email`
+- **Admin şifre görüntüleme / Groq key:** `CREDENTIAL_ENCRYPTION_KEY` yoksa anahtar AUTH_SECRET'tan HKDF ile türetilir (env eklenirse eski kayıtlar okunmaya devam eder). 2.2.1 öncesi işletmelerde şifre bir kez yenilenince görünür
+- **Sipariş modu:** QR siparişe geçiş reddedilince gerçek neden (Google Maps konumu gerekli) ekranda gösterilir
+
 ## 2.2.1 — Eylül 2026
 
 ### Yönetim ve güvenlik

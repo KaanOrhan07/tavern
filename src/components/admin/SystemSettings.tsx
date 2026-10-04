@@ -5,6 +5,7 @@ import { Badge, Button, Card, Input, Label } from "@/components/ui";
 
 type Status = {
   encryptionConfigured: boolean;
+  dedicatedKey: boolean;
   source: "db" | "env" | "none";
   updatedAt: string | null;
   updatedBy: string | null;
@@ -65,8 +66,12 @@ export function SystemSettings() {
           )}
         </p>
         {status && !status.encryptionConfigured && (
-          <p className="mb-3 text-sm text-danger">
-            CREDENTIAL_ENCRYPTION_KEY sunucuda tanımlı değil (en az 32 karakter, AUTH_SECRET&apos;tan farklı). Tanımlanana kadar kaydedilemez.
+          <p className="mb-3 text-sm text-danger">Şifreleme anahtarı bulunamadı (AUTH_SECRET tanımlı değil).</p>
+        )}
+        {status && status.encryptionConfigured && !status.dedicatedKey && (
+          <p className="mb-3 text-xs text-cream-dim">
+            Şu an anahtarlar AUTH_SECRET&apos;tan türetilen anahtarla şifreleniyor. Daha güçlü ayrım için Vercel&apos;e ayrı bir
+            CREDENTIAL_ENCRYPTION_KEY (en az 32 karakter) ekleyebilirsiniz; eski kayıtlar okunmaya devam eder.
           </p>
         )}
         <form onSubmit={save} className="space-y-3">

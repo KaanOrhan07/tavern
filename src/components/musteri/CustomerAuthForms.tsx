@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button, Card, Input, Label } from "@/components/ui";
 
-export function CustomerLoginForm({ nextPath = "/panel/hesabim" }: { nextPath?: string }) {
+export function CustomerLoginForm({
+  nextPath = "/panel/hesabim",
+  pinResetEnabled = false,
+}: {
+  nextPath?: string;
+  pinResetEnabled?: boolean;
+}) {
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
@@ -74,11 +80,13 @@ export function CustomerLoginForm({ nextPath = "/panel/hesabim" }: { nextPath?: 
         <Button type="submit" disabled={loading} className="w-full">
           {loading ? "Giriş yapılıyor..." : "Giriş yap"}
         </Button>
-        <p className="text-center text-sm">
-          <Link href="/panel/pin-sifirla" className="text-gold hover:underline">
-            PIN&apos;imi unuttum
-          </Link>
-        </p>
+        {pinResetEnabled && (
+          <p className="text-center text-sm">
+            <Link href="/panel/pin-sifirla" className="text-gold hover:underline">
+              PIN&apos;imi unuttum
+            </Link>
+          </p>
+        )}
       </form>
       <p className="text-sm text-cream-dim">
         Hesabın yok mu?{" "}
@@ -90,11 +98,18 @@ export function CustomerLoginForm({ nextPath = "/panel/hesabim" }: { nextPath?: 
   );
 }
 
-export function CustomerRegisterForm({ nextPath = "/panel/hesabim" }: { nextPath?: string }) {
+export function CustomerRegisterForm({
+  nextPath = "/panel/hesabim",
+  emailRequired = false,
+}: {
+  nextPath?: string;
+  emailRequired?: boolean;
+}) {
   const router = useRouter();
   const [step, setStep] = useState<"form" | "otp">("form");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
   const [otp, setOtp] = useState("");
   const [remember, setRemember] = useState(true);
@@ -110,12 +125,18 @@ export function CustomerRegisterForm({ nextPath = "/panel/hesabim" }: { nextPath
     const res = await fetch("/api/public/customer/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, pin, fullName: fullName || undefined }),
+      body: JSON.stringify({ phone, pin, email: email || undefined, fullName: fullName || undefined, remember }),
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
       setError(data?.error ?? "Kayıt başarısız");
       setLoading(false);
+      return;
+    }
+    // Doğrulama kodu kapalıysa hesap hemen açılır
+    if (data.verified) {
+      router.push(nextPath);
+      router.refresh();
       return;
     }
     setChallengeToken(data.challengeToken);
@@ -149,7 +170,7 @@ export function CustomerRegisterForm({ nextPath = "/panel/hesabim" }: { nextPath
         <div>
           <h1 className="text-xl font-semibold">Telefonu doğrula</h1>
           <p className="mt-1 text-sm text-cream-dim">
-            {phone} numarasına gönderilen 6 haneli kodu gir.
+            {email} adresine gönderilen 6 haneli kodu gir (gelmezse spam klasörüne bak).
           </p>
           {debugOtp && (
             <p className="mt-2 rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-sm text-gold">
@@ -208,6 +229,11 @@ export function CustomerRegisterForm({ nextPath = "/panel/hesabim" }: { nextPath
             inputMode="tel"
             required
           />
+        </div>
+        <div>
+          <Label>E-posta{emailRequired ? "" : " (isteğe bağlı)"}</Label>
+          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ornek@mail.com" required={emailRequired} />
+          {emailRequired && <p className="mt-1 text-[11px] text-cream-dim">Doğrulama kodu ve PIN sıfırlama kodu bu adrese gönderilir.</p>}
         </div>
         <div>
           <Label>6 haneli PIN</Label>

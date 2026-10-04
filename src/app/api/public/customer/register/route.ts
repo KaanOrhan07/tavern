@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { registerCustomerProfile } from "@/lib/customer-auth";
+import {
+  createCustomerSessionToken,
+  registerCustomerProfile,
+  setCustomerSessionCookie,
+} from "@/lib/customer-auth";
 import { clientIp, rateLimitAsync } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit";
 
@@ -8,6 +12,8 @@ const schema = z.object({
   phone: z.string().min(10).max(20),
   pin: z.string().regex(/^\d{6}$/),
   fullName: z.string().min(2).max(80).optional(),
+  email: z.string().email().max(120).optional().or(z.literal("")),
+  remember: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -23,7 +29,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await registerCustomerProfile(body.data);
+    const result = await registerCustomerProfile({ ...body.data, email: body.data.email || undefined });
     await writeAuditLog({
       action: "CREATE",
       entityType: "CustomerProfile",
@@ -31,8 +37,16 @@ export async function POST(request: Request) {
       // Telefon numarası KVKK gereği log'a yazılmaz
       ipAddress: ip,
     });
+    // Doğrulama kodu kapalıysa hesap doğrudan açılır ve oturum başlar
+    if (result.verified) {
+      const remember = body.data.remember === true;
+      const token = await createCustomerSessionToken({ id: result.profileId, phone: result.phone }, remember);
+      await setCustomerSessionCookie(token, remember);
+      return NextResponse.json({ ok: true, verified: true, profileId: result.profileId });
+    }
     return NextResponse.json({
       ok: true,
+      verified: false,
       profileId: result.profileId,
       challengeToken: result.challengeToken,
       debugOtp: result.debugOtp,

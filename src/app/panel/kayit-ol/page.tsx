@@ -2,7 +2,7 @@ import { safeNextPath } from "@/lib/safe-redirect";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { getCustomerSession } from "@/lib/customer-auth";
+import { getCustomerSession, otpRequired } from "@/lib/customer-auth";
 import { CustomerRegisterForm } from "@/components/musteri/CustomerAuthForms";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export default async function PanelMusteriKayitPage({
       <Link href="/panel/hesabim" className="mb-6 flex items-center gap-2">
         <Image src="/tavern-logo.png" alt="Tavern" width={80} height={40} className="h-7 w-auto" />
       </Link>
-      <CustomerRegisterForm nextPath={nextPath} />
+      <CustomerRegisterForm nextPath={nextPath} emailRequired={otpRequired()} />
     </div>
   );
 }

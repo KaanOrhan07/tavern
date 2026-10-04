@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPin, validatePinFormat, verifyPinHash } from "@/lib/pin";
 import { normalizePhone } from "@/lib/loyalty";
 import { sendSms } from "@/lib/sms";
+import { sendEmail } from "@/lib/email";
 import { rateLimitAsync } from "@/lib/rate-limit";
 
 export const CUSTOMER_COOKIE = "tavern_customer";
@@ -12,6 +13,16 @@ const OTP_TTL_SEC = 10 * 60;
 /** "Beni hatırla" işaretliyse 90 gün, değilse tarayıcı kapanınca biten oturum çerezi (token 24 saat). */
 const REMEMBER_MAX_AGE = 60 * 60 * 24 * 90;
 type OtpPurpose = "customer_otp" | "customer_pin_reset";
+
+/**
+ * Doğrulama kodu (OTP) şu an KAPALI. Kod silinmedi; yeniden açmak için Vercel'e
+ * CUSTOMER_OTP_REQUIRED=1 ekleyin (kayıt ve PIN sıfırlama kodla doğrulanır).
+ * Kapalıyken: kayıt anında doğrulanmış sayılır, PIN sıfırlama kapalıdır (kod olmadan
+ * PIN sıfırlamak hesap ele geçirmeye açık olurdu; PIN'i yönetici panelden sıfırlar).
+ */
+export function otpRequired(): boolean {
+  return process.env.CUSTOMER_OTP_REQUIRED === "1" || process.env.CUSTOMER_OTP_REQUIRED === "true";
+}
 
 export type CustomerSession = {
   role: "customer";
@@ -52,8 +63,15 @@ export async function createOtpChallenge(phone: string, purpose: OtpPurpose = "c
   return { challengeToken: token, otp, debugOtp: otpDebugEnabled() ? otp : undefined };
 }
 
-/** Kodu SMS ile gönderir. Aynı numaraya kısa sürede tekrar gönderim sınırlıdır (SMS maliyeti/kötüye kullanım). */
-export async function issueOtp(phone: string, purpose: OtpPurpose = "customer_otp") {
+/**
+ * Kodu ücretsiz kanal olan E-POSTA ile (varsa) ve yapılandırılmışsa SMS ile gönderir.
+ * Aynı numaraya kısa sürede tekrar gönderim sınırlıdır (kötüye kullanım / kota).
+ */
+export async function issueOtp(
+  phone: string,
+  purpose: OtpPurpose = "customer_otp",
+  email?: string | null
+) {
   const limited = await rateLimitAsync(`otp-send:${purpose}:${phone}`, {
     limit: 3,
     windowMs: 10 * 60 * 1000,
@@ -65,6 +83,14 @@ export async function issueOtp(phone: string, purpose: OtpPurpose = "customer_ot
     purpose === "customer_pin_reset"
       ? `Tavern PIN sıfırlama kodunuz: ${otp}. Kimseyle paylaşmayın.`
       : `Tavern doğrulama kodunuz: ${otp}. Kimseyle paylaşmayın.`;
+  if (email) {
+    await sendEmail({
+      to: email,
+      subject: purpose === "customer_pin_reset" ? "Tavern — PIN sıfırlama kodu" : "Tavern — doğrulama kodu",
+      text: `${text}\n\nKod 10 dakika geçerlidir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın.\n\nTavern — Digio Medya ve Yazılım`,
+    });
+  }
+  // SMS yalnızca Netgsm yapılandırılmışsa gider (yoksa sessizce atlanır)
   await sendSms(phone, text, "otp");
   return challenge;
 }
@@ -95,7 +121,14 @@ export async function registerCustomerProfile(input: {
   phone: string;
   pin: string;
   fullName?: string;
-}) {
+  email?: string;
+}): Promise<{
+  profileId: string;
+  phone: string;
+  verified: boolean;
+  challengeToken?: string;
+  debugOtp?: string;
+}> {
   const phone = normalizePhone(input.phone);
   if (!phone) throw new Error("Geçersiz telefon numarası");
   const pinErr = validatePinFormat(input.pin);
@@ -106,13 +139,17 @@ export async function registerCustomerProfile(input: {
   if (existing?.phoneVerified) throw new Error("Bu telefon zaten kayıtlı");
 
   const pinHash = await hashPin(input.pin);
+  // OTP kapalıyken hesap kayıt anında doğrulanmış sayılır
+  const verifiedNow = !otpRequired();
+  const emailValue = input.email?.trim().toLowerCase() || null;
   const profile = existing
     ? await prisma.customerProfile.update({
         where: { id: existing.id },
         data: {
           pinHash,
           fullName: input.fullName?.trim() || existing.fullName,
-          phoneVerified: false,
+          email: emailValue ?? existing.email,
+          phoneVerified: verifiedNow,
           accountStatus: "active",
           failedPinAttempts: 0,
           lockedUntil: null,
@@ -123,12 +160,17 @@ export async function registerCustomerProfile(input: {
           phone,
           pinHash,
           fullName: input.fullName?.trim() || null,
-          phoneVerified: false,
+          email: emailValue,
+          phoneVerified: verifiedNow,
         },
       });
 
-  const challenge = await issueOtp(phone);
-  return { profileId: profile.id, phone, ...challenge };
+  if (verifiedNow) {
+    return { profileId: profile.id, phone, verified: true };
+  }
+
+  const challenge = await issueOtp(phone, "customer_otp", profile.email);
+  return { profileId: profile.id, phone, verified: false, ...challenge };
 }
 
 export async function confirmCustomerOtp(input: {
@@ -208,11 +250,12 @@ export async function setCustomerSessionCookie(token: string, remember = false) 
 
 /** PIN sıfırlama: telefon kayıtlıysa SMS gider. Hesabın varlığı ifşa edilmez (her zaman aynı yanıt). */
 export async function requestPinReset(rawPhone: string) {
+  if (!otpRequired()) throw new Error(PIN_RESET_CLOSED);
   const phone = normalizePhone(rawPhone);
   if (!phone) throw new Error("Geçersiz telefon numarası");
   const profile = await prisma.customerProfile.findUnique({ where: { phone } });
   if (profile?.phoneVerified && profile.accountStatus === "active") {
-    return issueOtp(phone, "customer_pin_reset");
+    return issueOtp(phone, "customer_pin_reset", profile.email);
   }
   // Var olmayan hesap için de geçerli görünen ama doğrulanamayacak bir challenge döner
   const { otp: _unused, ...challenge } = await createOtpChallenge(phone, "customer_pin_reset");
@@ -220,12 +263,16 @@ export async function requestPinReset(rawPhone: string) {
   return { ...challenge, debugOtp: undefined };
 }
 
+export const PIN_RESET_CLOSED =
+  "PIN sıfırlama şu an kapalı. Lütfen işletme veya Tavern yöneticisi ile iletişime geçin.";
+
 export async function confirmPinReset(input: {
   phone: string;
   otp: string;
   challengeToken: string;
   newPin: string;
 }) {
+  if (!otpRequired()) throw new Error(PIN_RESET_CLOSED);
   const phone = normalizePhone(input.phone);
   if (!phone) throw new Error("Geçersiz telefon");
   const pinErr = validatePinFormat(input.newPin);

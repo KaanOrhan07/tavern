@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Badge, Button, Card, Input, Label } from "@/components/ui";
 import { APP_VERSION } from "@/lib/version";
+import { MenuExcelCard } from "@/components/panel/MenuExcelCard";
 import { ALL_WORK_DAYS, WEEK_ORDER } from "@/lib/appointments-shared";
 import { CustomerPublicLink } from "@/components/panel/CustomerPublicLink";
 import {
@@ -202,7 +203,8 @@ export function SettingsView({
     });
     if (!res.ok) {
       setMode(orderMode);
-      setError("Sipariş modu güncellenemedi");
+      const data = await res.json().catch(() => null);
+      setError(data?.error ?? "Sipariş modu güncellenemedi");
     }
     router.refresh();
   }
@@ -734,6 +736,8 @@ export function SettingsView({
           </Button>
         </form>
       </Card>
+
+      {!isBarber && <MenuExcelCard />}
 
       {!isBarber && (
         <Card>

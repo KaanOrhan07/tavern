@@ -938,6 +938,7 @@ model CustomerProfile {
   id              String    @id @default(cuid())
   phone           String    @unique
   phoneVerified   Boolean   @default(false)
+  email           String?   // 2.2.2: dogrulama / PIN sifirlama kodlari ucretsiz e-posta ile gonderilir
   pinHash         String?
   fullName        String?
   birthDate       DateTime?

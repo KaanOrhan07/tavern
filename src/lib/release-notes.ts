@@ -1,5 +1,15 @@
 export const RELEASE_NOTES = [
   {
+    version: "2.2.2",
+    date: "Ekim 2026",
+    highlights: [
+      "Ayarlar → Menü Excel: mevcut menüyü indir, şablonu indir, Excel'den toplu ürün/kategori/varyant yükle (önce önizleme)",
+      "Ücretsiz doğrulama: kayıt ve PIN sıfırlama kodları e-posta ile gönderilir (Brevo günde 300 ücretsiz / Resend)",
+      "Admin: işletme şifresi görüntüleme ve Groq key kaydı ayrı env gerektirmeden çalışır",
+      "Sipariş modu değiştirilemediğinde artık nedeni gösteriliyor (konum şartı)",
+    ],
+  },
+  {
     version: "2.2.1",
     date: "Eylül 2026",
     highlights: [
