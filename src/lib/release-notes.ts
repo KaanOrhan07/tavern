@@ -1,5 +1,12 @@
 export const RELEASE_NOTES = [
   {
+    version: "3.1.2",
+    date: "Ekim 2026",
+    highlights: [
+      "Randevu sayfası galerisi yenilendi: büyük ana görsel + altında dokunulabilir küçük fotoğraf şeridi (aktif foto altın vurgulu); tek fotoğrafta da düzgün, dengeli görünüm",
+    ],
+  },
+  {
     version: "3.1.1",
     date: "Ekim 2026",
     highlights: [

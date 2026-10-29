@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.1.2 — Ekim 2026
+
+### Randevu galerisi (UI)
+- **Galeri mantığı yenilendi.** Randevu sayfasındaki işletme galerisi artık tek sıra küçük kart şeridi yerine **büyük ana görsel + altında dokunulabilir küçük fotoğraf (thumbnail) şeridi** olarak gösteriliyor; thumbnail'a dokununca ana görsel değişir, aktif foto altın halka ile vurgulanır. Tek fotoğraf olduğunda da dengeli/düzgün görünür (eskiden sola yapışık küçük tek kart olarak kötü duruyordu). `components/musteri/BookingWidget.tsx`.
+
 ## 3.1.1 — Ekim 2026
 
 ### Düzeltme

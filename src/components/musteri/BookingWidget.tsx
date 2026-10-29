@@ -76,6 +76,7 @@ export function BookingWidget({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ cancelToken: string; startAt: string } | null>(null);
+  const [activePhoto, setActivePhoto] = useState(0);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const slotsRef = useRef<HTMLDivElement | null>(null);
@@ -213,6 +214,7 @@ export function BookingWidget({ slug }: { slug: string }) {
   const cover = business?.bannerUrl ? toDisplayImageUrl(business.bannerUrl) : null;
   const logo = business?.logoUrl ? toDisplayImageUrl(business.logoUrl) : null;
   const gallery = (business?.gallery ?? []).map(toDisplayImageUrl);
+  const activeIdx = gallery.length ? Math.min(activePhoto, gallery.length - 1) : 0;
 
   if (success) {
     return (
@@ -312,23 +314,50 @@ export function BookingWidget({ slug }: { slug: string }) {
 
       {/* ---------- Galeri ---------- */}
       {gallery.length > 0 && (
-        <div className="fade-edges hide-scrollbar -mt-3 flex gap-3 overflow-x-auto px-4 pb-1 [-webkit-overflow-scrolling:touch]">
-          {gallery.map((src, i) => (
-            <div
-              key={i}
-              className="anim-fade-up relative h-28 w-40 shrink-0 overflow-hidden rounded-2xl border border-white/10 shadow-[var(--shadow-2)]"
-              style={{ ["--i" as string]: Math.min(i, 8) }}
-            >
-              <Image
-                src={src}
-                alt=""
-                fill
-                sizes="160px"
-                className="object-cover"
-                unoptimized={src.startsWith("/api/")}
-              />
+        <div className="anim-fade-up mx-auto mt-4 max-w-lg px-4">
+          {/* Büyük ana görsel */}
+          <div className="relative aspect-[16/10] w-full overflow-hidden rounded-3xl border border-white/10 shadow-[var(--shadow-3)]">
+            <Image
+              key={gallery[activeIdx]}
+              src={gallery[activeIdx]}
+              alt={business?.name ?? ""}
+              fill
+              priority
+              sizes="(max-width: 640px) 100vw, 512px"
+              className="anim-fade-in object-cover"
+              unoptimized={gallery[activeIdx].startsWith("/api/")}
+            />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink/35 to-transparent" />
+          </div>
+
+          {/* Küçük görsel şeridi (foto > 1 ise) */}
+          {gallery.length > 1 && (
+            <div className="hide-scrollbar mt-3 flex gap-2.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+              {gallery.map((src, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setActivePhoto(i)}
+                  aria-label={`Fotoğraf ${i + 1}`}
+                  aria-current={i === activeIdx}
+                  className={`relative h-16 w-20 shrink-0 overflow-hidden rounded-xl border transition ${
+                    i === activeIdx
+                      ? "border-gold ring-2 ring-gold/60"
+                      : "border-white/10 opacity-60 hover:opacity-100"
+                  }`}
+                >
+                  <Image
+                    src={src}
+                    alt=""
+                    fill
+                    sizes="80px"
+                    className="object-cover"
+                    unoptimized={src.startsWith("/api/")}
+                  />
+                </button>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 
