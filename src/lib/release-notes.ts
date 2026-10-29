@@ -1,5 +1,12 @@
 export const RELEASE_NOTES = [
   {
+    version: "3.1.1",
+    date: "Ekim 2026",
+    highlights: [
+      "Düzeltme: Canlıda (Vercel) fotoğraf yükleme hatası giderildi — randevu galerisi, hizmet/personel görseli, ürün fotoğrafı ve logo/banner yüklemeleri artık çalışıyor (sunucuya görsel işleme kütüphanesi doğru şekilde paketleniyor)",
+    ],
+  },
+  {
     version: "3.1.0",
     date: "Ekim 2026",
     highlights: [

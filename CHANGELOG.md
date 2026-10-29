@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.1.1 — Ekim 2026
+
+### Düzeltme
+- **Canlıda fotoğraf yükleme hatası giderildi.** Vercel (Linux) üzerinde `sharp` görsel işleme kütüphanesinin native kütüphanesi (libvips `.so`) serverless fonksiyon paketine dahil edilmiyordu; bu yüzden randevu galerisi, hizmet/personel görseli, ürün fotoğrafı ve logo/banner yüklemeleri 500 hatası veriyordu. `next.config.ts` → `outputFileTracingIncludes` ile `@img/sharp-linux-x64` ve `@img/sharp-libvips-linux-x64` tüm `/api/**` rotalarına zorla dahil edildi.
+
 ## 3.1.0 — Ekim 2026
 
 ### Müşteri randevu deneyimi (yeniden yazıldı)
