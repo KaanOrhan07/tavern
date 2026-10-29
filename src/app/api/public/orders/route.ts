@@ -10,6 +10,7 @@ import {
 } from "@/lib/idempotency";
 import { writeAuditLog } from "@/lib/audit";
 import { checkOrderGeo } from "@/lib/geofence";
+import { qrOrderingEnabled } from "@/lib/order-mode";
 import { getCustomerSession } from "@/lib/customer-auth";
 import { normalizePhone } from "@/lib/loyalty";
 
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
       { status: 403 }
     );
   }
-  if (table.business.orderMode !== "CUSTOMER_QR") {
+  if (!qrOrderingEnabled(table.business.orderMode)) {
     return NextResponse.json(
       { error: "Bu işletmede sipariş garson aracılığıyla alınır" },
       { status: 403 }

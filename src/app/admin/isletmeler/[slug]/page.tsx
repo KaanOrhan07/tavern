@@ -4,6 +4,7 @@ import { getFeatureMap } from "@/lib/features";
 import { formatKurus, todayRange } from "@/lib/utils";
 import { Badge, Card } from "@/components/ui";
 import { getAdminSession } from "@/lib/auth";
+import { ORDER_MODE_LABEL } from "@/lib/order-mode";
 import { AdminBusinessControls } from "@/components/admin/AdminBusinessControls";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,7 @@ export default async function AdminBusinessDetailPage({
           <h1 className="text-xl font-semibold">{business.name}</h1>
           <p className="mt-0.5 text-xs text-cream-dim">
             /{business.slug} · {business.type.name} · Sipariş modu:{" "}
-            {business.orderMode === "WAITER_ONLY" ? "Sadece Garson" : "Müşteri QR"}
+            {ORDER_MODE_LABEL[business.orderMode]}
           </p>
         </div>
         <Badge tone={business.active ? "ok" : "danger"}>{business.active ? "Aktif" : "Pasif"}</Badge>
@@ -94,6 +95,7 @@ export default async function AdminBusinessDetailPage({
         businessName={business.name}
         active={business.active}
         featureMap={featureMap}
+        invoiceProvider={business.invoiceProvider}
         isSuper={session?.level === "super"}
       />
     </div>

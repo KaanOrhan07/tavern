@@ -1,5 +1,7 @@
 import { validateRecipeIngredients } from "@/lib/recipe-validate";
 import { NextResponse, after } from "next/server";
+import { revalidateTag } from "next/cache";
+import { mapAllergenText } from "@/lib/allergens";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
@@ -132,6 +134,8 @@ export async function PATCH(
       return NextResponse.json({ error: "Geçersiz alerjen listesi" }, { status: 400 });
     }
     data.allergens = parsed.map((a) => String(a).trim()).filter(Boolean);
+    // Serbest metin değişince AB-14 anahtarları da yeniden eşlenir (aksi halde eski anahtarlar öncelik alırdı)
+    data.allergenKeys = mapAllergenText(data.allergens as string[]);
   }
   if (form.has("vegan")) {
     data.vegan = String(form.get("vegan")) === "true";
@@ -144,9 +148,11 @@ export async function PATCH(
   }
   if (form.has("aiApproved")) {
     data.aiApproved = String(form.get("aiApproved")) === "true";
+    if (data.aiApproved) data.aiPending = false;
   }
 
   const product = await prisma.product.update({ where: { id }, data });
+  revalidateTag(`menu:${ctx.business.id}`, "max");
 
   if (recipeChanged) {
     // Yanıtı geciktirmesin; arka planda çalışır

@@ -14,6 +14,7 @@ import { earnLoyaltyPoints } from "@/lib/loyalty";
 import { isFeatureEnabled } from "@/lib/features";
 import { upsertCustomerBusinessStats } from "@/lib/customer-stats";
 import { sendSms } from "@/lib/sms";
+import { broadcastBusiness } from "@/lib/realtime";
 import { ALL_WORK_DAYS, weekdayOfYmd } from "@/lib/appointments-shared";
 
 export { ALL_WORK_DAYS, weekdayOfYmd };
@@ -437,6 +438,8 @@ export async function transitionAppointment(params: TransitionParams) {
       },
     });
   }
+
+  broadcastBusiness(params.businessId, "appointments", "notifications");
 
   // Müşteriye SMS: yalnızca işletme/personel/sistem kaynaklı değişimlerde (müşterinin kendi eylemi için değil)
   if (params.changedByRole !== "customer") {

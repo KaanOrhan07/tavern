@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { geoAccessOk } from "@/lib/geofence";
+import { DEFAULT_ALLERGEN_NOTE, allergenIcon, allergenLabel, mapAllergenText } from "@/lib/allergens";
+import { qrOrderingEnabled } from "@/lib/order-mode";
 import { prisma } from "@/lib/prisma";
 import { formatKurus } from "@/lib/utils";
 import { isFeatureEnabled } from "@/lib/features";
@@ -22,7 +24,7 @@ export default async function PublicProductPage({
   const { masa } = await searchParams;
   const business = await prisma.business.findUnique({
     where: { slug: isletmeSlug },
-    select: { id: true, active: true, orderMode: true },
+    select: { id: true, active: true, orderMode: true, allergenNote: true },
   });
   if (!business || !business.active) notFound();
   // Konum doğrulanmadıysa menü sayfasına (kapıya) yönlendir
@@ -52,10 +54,12 @@ export default async function PublicProductPage({
       include: { variants: { where: { active: true }, orderBy: { sortOrder: "asc" } } },
     }),
   ]);
+  const biz = business;
+  const shownAllergenKeys = product.allergenKeys.length > 0 ? product.allergenKeys : mapAllergenText(product.allergens);
   const outOfStock = stockEnabled && isOutOfStock(product);
   const canOrder =
     !outOfStock &&
-    business.orderMode === "CUSTOMER_QR" &&
+    qrOrderingEnabled(business.orderMode) &&
     table !== null &&
     table.businessId === business.id;
 
@@ -92,49 +96,70 @@ export default async function PublicProductPage({
       </div>
 
       {/* İçerik */}
-      {product.recipeItems.length > 0 && (
+      {(product.ingredientsText || product.recipeItems.length > 0) && (
         <div className="rounded-xl border border-ink-line bg-ink-card p-4">
           <p className="mb-2 text-sm font-medium">İçindekiler</p>
           <p className="text-sm text-cream-dim">
-            {product.recipeItems.map((r) => r.ingredient.name).join(", ")}
+            {product.ingredientsText || product.recipeItems.map((r) => r.ingredient.name).join(", ")}
           </p>
         </div>
       )}
 
-      {/* Kalori / diyet / alerjen — işletme onayladıysa gösterilir */}
-      {product.aiApproved &&
-        (product.calories !== null ||
-          product.allergens.length > 0 ||
-          product.vegan ||
-          product.vegetarian ||
-          product.glutenFree) && (
-          <div className="rounded-xl border border-ink-line bg-ink-card p-4">
-            <p className="text-sm">
-              {[
-                product.calories !== null ? `${product.calories} kalori` : null,
-                product.vegan ? "Vegan" : product.vegetarian ? "Vejetaryen" : null,
-                product.glutenFree ? "Glutensiz" : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-            {product.allergens.length > 0 ? (
-              <p className="mt-2 text-sm text-warn">
-                Alerjen Malzeme: {product.allergens.join(", ")}
+      {/* Alkol / domuz bilgisi: işletmenin elle girdiği içerik bilgisi, onaydan bağımsız gösterilir */}
+      {(product.containsAlcohol || product.containsPork) && (
+        <div className="flex flex-wrap gap-2">
+          {product.containsAlcohol && (
+            <span className="rounded-lg border border-danger/40 bg-danger/10 px-2.5 py-1 text-xs text-danger">
+              🍷 Alkol içerir
+            </span>
+          )}
+          {product.containsPork && (
+            <span className="rounded-lg border border-danger/40 bg-danger/10 px-2.5 py-1 text-xs text-danger">
+              🐖 Domuz ürünü içerir
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Kalori / diyet / alerjen — yalnızca işletme onayladıysa gösterilir */}
+      <div className="rounded-xl border border-ink-line bg-ink-card p-4">
+        {product.aiApproved ? (
+          <>
+            {(product.calories !== null || product.vegan || product.vegetarian || product.glutenFree) && (
+              <p className="text-sm">
+                {[
+                  product.calories !== null ? `${product.calories} kalori` : null,
+                  product.vegan ? "Vegan" : product.vegetarian ? "Vejetaryen" : null,
+                  product.glutenFree ? "Glutensiz" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
-            ) : (
-              product.calories !== null && (
-                <p className="mt-2 text-sm text-cream-dim">
-                  Bilinen yaygın alerjen içermez.
-                </p>
-              )
             )}
-            <p className="mt-3 text-[11px] text-cream-dim/70">
-              Kalori ve alerjen bilgileri yapay zekâ desteğiyle hesaplanmıştır. Ciddi
-              alerjiniz varsa personele danışın.
-            </p>
-          </div>
+            {shownAllergenKeys.length > 0 ? (
+              <div className="mt-2">
+                <p className="mb-1.5 text-xs font-medium text-cream-dim">Alerjenler</p>
+                <div className="flex flex-wrap gap-2">
+                  {shownAllergenKeys.map((k) => (
+                    <span key={k} className="rounded-lg border border-warn/30 bg-warn/10 px-2.5 py-1 text-xs text-warn">
+                      {allergenIcon(k)} {allergenLabel(k, "TR")}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-cream-dim">Bilinen yaygın alerjen içermez.</p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-cream-dim">
+            Bu ürünün alerjen bilgisi henüz doğrulanmadı — lütfen sipariş vermeden önce personele danışın.
+          </p>
         )}
+        <p className="mt-3 text-[11px] text-cream-dim/70">
+          {biz.allergenNote?.trim() || DEFAULT_ALLERGEN_NOTE.TR}
+        </p>
+      </div>
 
       {canOrder && (
         <ProductAddToCart

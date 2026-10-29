@@ -6,6 +6,7 @@ import { pickDailyProduct } from "@/lib/daily-pick";
 import { isOutOfStock } from "@/lib/stock";
 import { resolveProductCart } from "@/lib/menu-products";
 import { toDisplayImageUrl } from "@/lib/storage-url";
+import { mapAllergenText } from "@/lib/allergens";
 
 export type PublicMenuProduct = {
   id: string;
@@ -15,6 +16,14 @@ export type PublicMenuProduct = {
   imageUrl: string;
   calories: number | null;
   allergens: string[];
+  /** AB-14 alerjen anahtarları (yalnızca işletme onaylıysa dolu) */
+  allergenKeys: string[];
+  /** İşletmenin elle girdiği içerik bilgileri (onaydan bağımsız gösterilir) */
+  containsAlcohol: boolean;
+  containsPork: boolean;
+  ingredientsText: string | null;
+  /** Alerjen/etiket bilgisi işletme tarafından onaylandı mı (yoksa "personele danışın" denir) */
+  labelsApproved: boolean;
   vegan: boolean;
   vegetarian: boolean;
   glutenFree: boolean;
@@ -41,6 +50,8 @@ export type PublicMenuData = {
   dailyProduct: PublicMenuProduct | null;
   suggestionEnabled: boolean;
   loyaltyEnabled: boolean;
+  /** İşletmenin özel alerjen notu (null → varsayılan metin) */
+  allergenNote: string | null;
 };
 
 async function loadFeatureFlags(businessId: string): Promise<Record<FeatureKey, boolean>> {
@@ -103,6 +114,15 @@ async function loadPublicMenuDataUncached(businessId: string): Promise<PublicMen
       imageUrl: toDisplayImageUrl(p.imageUrl),
       calories: p.aiApproved ? p.calories : null,
       allergens: p.aiApproved ? p.allergens : [],
+      allergenKeys: p.aiApproved
+        ? p.allergenKeys.length > 0
+          ? p.allergenKeys
+          : mapAllergenText(p.allergens)
+        : [],
+      containsAlcohol: p.containsAlcohol,
+      containsPork: p.containsPork,
+      ingredientsText: p.ingredientsText,
+      labelsApproved: p.aiApproved,
       vegan: p.aiApproved ? p.vegan : false,
       vegetarian: p.aiApproved ? p.vegetarian : false,
       glutenFree: p.aiApproved ? p.glutenFree : false,
@@ -151,7 +171,14 @@ async function loadPublicMenuDataUncached(businessId: string): Promise<PublicMen
     }
   }
 
-  return { menuCategories, dailyProduct, suggestionEnabled, loyaltyEnabled };
+  const biz = await prisma.business.findUnique({ where: { id: businessId }, select: { allergenNote: true } });
+  return {
+    menuCategories,
+    dailyProduct,
+    suggestionEnabled,
+    loyaltyEnabled,
+    allergenNote: biz?.allergenNote ?? null,
+  };
 }
 
 /** Müşteri menüsü — kısa süreli cache (katalog ağırlıklı). */

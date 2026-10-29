@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
 import { writeAuditLog } from "@/lib/audit";
 import { resolveMapsLink } from "@/lib/maps";
+import { qrOrderingEnabled } from "@/lib/order-mode";
 
 /** Yalnızca http/https — `javascript:` gibi şemalar müşteri sayfasında XSS olur. */
 const httpUrl = z
@@ -19,6 +21,27 @@ const httpUrl = z
   }, "Geçerli bir bağlantı girin (https://...)");
 const optionalUrl = httpUrl.nullable().optional().or(z.literal(""));
 
+/** Google yorum bağlantısı: yalnızca https ve Google alan adları (g.page, search.google.com, maps.app.goo.gl …). */
+const GOOGLE_REVIEW_HOSTS = ["g.page", "g.co", "goo.gl", "maps.app.goo.gl", "share.google", "google.com", "google.com.tr"];
+const googleReviewUrl = z
+  .string()
+  .max(500)
+  .refine((v) => {
+    try {
+      const u = new URL(v);
+      const host = u.hostname.toLowerCase();
+      return (
+        u.protocol === "https:" &&
+        GOOGLE_REVIEW_HOSTS.some((h) => host === h || host.endsWith("." + h))
+      );
+    } catch {
+      return false;
+    }
+  }, "Geçerli bir Google yorum/işletme bağlantısı girin (g.page, search.google.com/local/writereview… veya maps.app.goo.gl)")
+  .nullable()
+  .optional()
+  .or(z.literal(""));
+
 const schema = z.object({
   address: z.string().max(300).nullable().optional(),
   phone: z.string().max(30).nullable().optional(),
@@ -31,6 +54,8 @@ const schema = z.object({
   websiteUrl: optionalUrl,
   description: z.string().max(1000).nullable().optional(),
   geofenceEnabled: z.boolean().optional(),
+  googleReviewUrl,
+  allergenNote: z.string().max(500).nullable().optional(),
 });
 
 function emptyToNull(v: string | null | undefined) {
@@ -51,6 +76,9 @@ export async function GET() {
     ok: true,
     info: info ? { ...rest, hasCoordinates: latitude != null && longitude != null } : null,
     geofenceEnabled: ctx.business.geofenceEnabled,
+    googleReviewUrl: ctx.business.googleReviewUrl,
+    allergenNote: ctx.business.allergenNote,
+    reviewClicks: ctx.business.reviewClicks,
   });
 }
 
@@ -68,7 +96,7 @@ export async function PATCH(request: Request) {
   const d = body.data;
 
   // QR sipariş açıkken konum kısıtı kapatılamaz / Maps linki silinemez (evden sipariş engeli)
-  if (ctx.business.orderMode === "CUSTOMER_QR") {
+  if (qrOrderingEnabled(ctx.business.orderMode)) {
     if (d.geofenceEnabled === false) {
       return NextResponse.json(
         { error: "Müşteri QR siparişi açıkken konum kısıtı kapatılamaz. Önce sipariş modunu 'Sadece Garson' yapın." },
@@ -110,21 +138,23 @@ export async function PATCH(request: Request) {
     ...(mapsFields ?? {}),
   };
 
+  const businessData = {
+    ...(d.geofenceEnabled !== undefined && { geofenceEnabled: d.geofenceEnabled }),
+    ...(d.googleReviewUrl !== undefined && { googleReviewUrl: emptyToNull(d.googleReviewUrl) }),
+    ...(d.allergenNote !== undefined && { allergenNote: d.allergenNote?.trim() || null }),
+  };
+
   const [info] = await prisma.$transaction([
     prisma.businessInfo.upsert({
       where: { businessId: ctx.business.id },
       create: { businessId: ctx.business.id, ...data },
       update: data,
     }),
-    ...(d.geofenceEnabled !== undefined
-      ? [
-          prisma.business.update({
-            where: { id: ctx.business.id },
-            data: { geofenceEnabled: d.geofenceEnabled },
-          }),
-        ]
+    ...(Object.keys(businessData).length > 0
+      ? [prisma.business.update({ where: { id: ctx.business.id }, data: businessData })]
       : []),
   ]);
+  if (d.allergenNote !== undefined) revalidateTag(`menu:${ctx.business.id}`, "max");
 
   await writeAuditLog({
     businessId: ctx.business.id,
@@ -132,7 +162,7 @@ export async function PATCH(request: Request) {
     action: "SETTINGS_CHANGE",
     entityType: "BusinessInfo",
     entityId: ctx.business.id,
-    afterData: { ...data, geofenceEnabled: d.geofenceEnabled },
+    afterData: { ...data, ...businessData },
   });
 
   return NextResponse.json({

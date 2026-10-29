@@ -1,5 +1,87 @@
 # Changelog
 
+## 3.1.0 — Ekim 2026
+
+### Müşteri randevu deneyimi (yeniden yazıldı)
+- Yeni `BookingWidget`: adım adım akış (hizmet → personel → gün → saat → bilgiler), görselli hizmet kartları (kart içi açıklama + süre/fiyat), dairesel personel avatarları, Ken Burns kapak, işletme galerisi şeridi
+- Aşağı kaydırdıkça tepki veren akan gradyan (`.aurora`, `--sp` scroll ilerlemesi), dokunmatik geri bildirim (`pressable`), seçim halkaları, iskelet (skeleton) slot yükleme, yapışkan özet çubuğu
+- Mobil öncelikli ve `prefers-reduced-motion` uyumlu; 360 px (Galaxy S23/S24, Redmi Note) ile iPhone X/11/13/16 genişliklerinde kaymadan çalışır, güvenli alan (safe-area) boşlukları
+- İşletme teması (renk/font/köşe) köprüsü artık randevu sayfasına da uygulanıyor
+- Randevu sayfası tam genişlikte kapakla açılır (`[isletmeSlug]/randevu` yan boşluğu kırar)
+
+### İşletme görselleri (şema + ayarlar)
+- `Service.imageUrl`, `Service.description`, `User.imageUrl` (personel avatarı), `BusinessInfo.galleryUrls` eklendi (migration `20261029100000_tavern_3_1_0_booking`)
+- `storage.uploadBookingImage` (hizmet/personel/galeri, webp, 800px, ayrı klasör)
+- Hizmetler: düzenleme formunda görsel + kısa açıklama; kartta küçük önizleme
+- Personeller: her personele dairesel avatar yükleme
+- Ayarlar → Randevu Sayfası Galerisi: en fazla 8 vitrin fotoğrafı ekle/sil (`/api/panel/booking-gallery`)
+
+### Berber raporları (yeni)
+- `getBarberReports` + `/api/panel/reports/barber`; `BarberReportsView`
+- KPI: ciro, tamamlanan randevu, ortalama işlem, gelmedi oranı (önceki dönem karşılaştırmalı)
+- Grafikler: günlük ciro (alan), günlük randevu (sütun), yoğun saatler, gün×saat ısı haritası, hizmet ve personel performansı (ciro/adet sıralama); CSV indir
+- Raporlar sayfası işletme türüne göre dallanır (berber → `BarberReportsView`); berber paneline "Raporlar" menüsü eklendi
+
+### Panel randevu ekranı
+- `AppointmentsBoard` 3.0.1 tasarım sistemine taşındı: `PageHeader`, KPI `StatCard`'ları, `Segmented` görünüm seçici, lucide ikonlu eylemler, iskelet yükleme
+
+### Müşteri hesabı — randevu aksiyonları
+- İşletmenin önerdiği alternatif saati tek tıkla kabul/ret (`/api/public/appointments/respond` — mevcut uç)
+- Yaklaşan randevuyu iptal et
+- Tamamlanan randevu sonrası Google yorum kartı (`/{işletme}/yorum`, tıklama sayacı)
+
+### Müşteri UI tarzları (tema)
+- Yeni hazır tarzlar: **Glassmorphism** (buzlu cam), **Minimalism** (sade), **Y2K** (neon/retro-fütürist); **Luxury** fontu Playfair Display'e güncellendi
+- Yeni fontlar: Space Grotesk, Orbitron, Syne (`ALLOWED_FONTS`)
+- Tema ekranında her tarzın **görsel önizlemesi** (renk/köşe/cam efekti + gerçek font), seçili işaretçi; büyük canlı önizleme de preset fontunu gösterir
+- Tema tamamen işletmeye özel kalır: `ThemeSettings` `businessId`'ye bağlı, müşteri layout'una inline CSS değişkeniyle uygulanır; bir işletmenin tarzı diğerini etkilemez. Seçilen tarz menü + randevu sayfasının ikisine birden uygulanır
+
+## 3.0.1 — Ekim 2026
+
+### Tasarım sistemi
+- `globals.css`: hareket (süre/easing), gölge ve grafik renk tokenları; `sheet-up` dahil eksik animasyonlar tanımlandı; `:focus-visible` halkası, `prefers-reduced-motion`, skeleton, glass, safe-area yardımcıları
+- `ui.tsx`: Button (loading/size), Skeleton, PageHeader, Segmented, StatCard; `lucide-react` ile tutarlı SVG ikonlar (emoji/unicode ikonlar kaldırıldı)
+- Bağımlılıksız SVG grafik seti (`components/charts`): alan, sütun, halka, sıralı çubuk, sparkline, ısı haritası; tooltip (fare + klavye), erişilebilir özet ve "tablo olarak göster"
+
+### Müşteri tarafı
+- İşletme teması (renk/font/köşe) Tailwind token köprüsüyle menüye uygulanır (yalnızca özelleştirilmiş temalarda; varsayılan görünüm değişmez); seçili fontlar Google Fonts ile yüklenir
+- Karşılama: Ken Burns kapak, görselli kategori kartları, yol tarifi/bilgi hapları
+- Menü: yapışkan arama + scroll-spy kategori şeridi, diyet filtreleri, kart içi +/− sepet kontrolü, boş sonuç durumu
+- Sepet çubuğu (animasyonlu, toplam), garson/hesap/puan hızlı eylemleri, ürün sayfası (Esc, sürükleyerek kapat, SVG ikonlar)
+- Düzeltme: `overflow-x-hidden` yapışkan çubuğu bozuyordu → `overflow-x-clip`
+
+### İşletme paneli
+- Yeni kabuk: gruplu kenar çubuğu, aktif öğe göstergesi, mobil alt çubuk (4 + Daha fazla), "içeriğe geç" bağlantısı
+- Komut paleti (Ctrl/⌘+K veya `/`): sayfa + ürün/masa/müşteri/hizmet/randevu araması (`/api/panel/search`)
+- Genel Bakış yeniden tasarlandı (restoran + berber); Raporlar grafikli (`/api/panel/reports/overview`, 7/30/90 gün, önceki dönem karşılaştırması)
+- Masalar: durum rengi, ödeme ilerlemesi, arama + filtre, iskelet yükleme
+- Ayarlar: arama ve bölüme atlama çipleri
+
+## 2.3.0 — Ekim 2026
+
+### Faz 1 — Menü uyumu
+- **AI etiket onayı (güvenlik):** Kalori/alerjen/diyet etiketleri AI tarafından hesaplanır ama **otomatik onaylanmaz**; Menü sayfasındaki "AI Etiket Onayı" ekranında işletme kontrol edip onaylayana kadar müşteriye gösterilmez. Önceki sürümde otomatik "onaylı" olan etiketler migration ile yeniden incelemeye alındı. Onaylanmamış üründe müşteriye "alerjen bilgisi doğrulanmadı, personele danışın" yazılır
+- **İçerik bilgisi:** İçindekiler listesi, 🍷 alkol / 🐖 domuz alanları (reçeteden öneri), AB 14 standart alerjen (6 dilde adlar), özelleştirilebilir menü uyarı notu
+- **Test OTP kapatıldı:** `000000` / ekranda kod yalnızca yerel geliştirmede; production'da hiçbir env ile açılamaz
+- **Garson + QR aynı anda (BOTH):** Hem garson hem müşteri sipariş verebilir; QR için konum şartı geçerli
+- **Google yorum:** Ödeme sonrası "Google'da değerlendir" kartı; NFC kart / masa QR için kalıcı bağlantı `/{işletme}/yorum` (tıklama sayacı)
+- **Admin 2FA (TOTP):** Hesap Güvenliği sayfası, RFC 6238 uyumlu, tekrar kullanım koruması, alt admin 2FA sıfırlama, acil durum `ADMIN_TOTP_DISABLE`
+
+### Faz 2 — Tek sistem olmak (altyapı)
+- **Ödeme tipleri:** Yemek kartı (Multinet/Sodexo/Edenred/Metropol/SetCard/Paye) ve diğer; şimdilik kayıt. Günlük rapor + CSV dağılımı
+- **Realtime:** Supabase Broadcast ile "yenile" ipuçları (mutfak, masalar, bildirimler, randevular); veri taşımaz, polling yedeği sürer
+- **Yazdırma ajanı:** `PrintJob` kuyruğu, `/api/v1/print/jobs` + `ack`, cihaz anahtarları (Ayarlar → Cihazlar)
+- **Çevrimdışı adisyon:** PWA (manifest + service worker), yerel işlem kuyruğu, idempotent garson siparişi
+- **e-Arşiv / POS:** `InvoiceRecord` kuyruğu + sağlayıcı arayüzü, `PosAdapter` sözleşmesi (entegratör / marka seçimi bekleniyor)
+
+### Masaüstü + mobil uygulama altyapısı
+- Bearer token (`/api/v1/auth/*`), sürüm uyumluluğu (`/api/v1/meta`, 426), CORS, ortak idempotency sözleşmesi
+- Belgeler: `docs/CLIENT_API.md`, `docs/APPS_ARCHITECTURE.md`
+
+### Diğer
+- CSV dışa aktarma: formül enjeksiyonu koruması ve İstanbul saatiyle "bugün"
+- Ürün/menü değişince müşteri menü önbelleği anında yenilenir
+
 ## 2.2.2 — Ekim 2026
 
 - **Menü Excel:** Ayarlar'da mevcut menüyü indir / boş şablonu indir / Excel'den toplu yükle. Önizleme (kaydetmez) → içe aktar; kategori otomatik, aynı kategori+ürün güncellenir, varyantlar `Ad=Fiyat; …`, formül enjeksiyonu korumalı, en fazla 1000 satır / 2 MB, silme yok

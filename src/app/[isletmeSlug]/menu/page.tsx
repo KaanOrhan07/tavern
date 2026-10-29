@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { qrOrderingEnabled } from "@/lib/order-mode";
 import { loadPublicMenuData } from "@/lib/public-menu-data";
 import { geoAccessOk } from "@/lib/geofence";
 import { GeoGate } from "@/components/musteri/GeoGate";
@@ -32,7 +33,7 @@ export default async function PublicMenuPage({
   ]);
 
   const canOrder =
-    business.orderMode === "CUSTOMER_QR" && table !== null && table.businessId === business.id;
+    qrOrderingEnabled(business.orderMode) && table !== null && table.businessId === business.id;
 
   return (
     <CustomerMenuApp
@@ -47,6 +48,7 @@ export default async function PublicMenuPage({
       dailyProduct={menuData.dailyProduct}
       suggestionEnabled={menuData.suggestionEnabled}
       loyaltyEnabled={menuData.loyaltyEnabled}
+      allergenNote={menuData.allergenNote}
       startOnWelcome
       defaultLocale={localeSettings?.defaultLocale ?? "TR"}
       enabledLocales={localeSettings?.enabledLocales ?? ["TR", "EN"]}

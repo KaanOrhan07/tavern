@@ -1,8 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { isFeatureEnabled } from "@/lib/features";
 import { estimateCaloriesAndAllergens } from "@/lib/ai";
+import { mapAllergenText } from "@/lib/allergens";
 
-/** Ürün kaydından sonra reçeteye göre otomatik kalori/alerjen/diyet etiketi hesaplar. */
+/**
+ * Reçeteye göre kalori/alerjen/diyet etiketini AI ile HESAPLAR ve ürüne öneri olarak yazar.
+ *
+ * ÖNEMLİ (2.3.0): Sonuç ASLA otomatik onaylanmaz. Yanlış alerjen bilgisi sağlık riskidir; bu yüzden
+ * ürün "onay bekliyor" (aiPending) olur ve işletme Menü → "AI Etiket Onayı" ekranından kontrol
+ * edip onaylayana kadar müşteriye GÖSTERİLMEZ. Reçete değişirse önceki onay da düşer.
+ */
 export async function autoFillProductNutrition(businessId: string, productId: string) {
   if (!(await isFeatureEnabled(businessId, "ai_calorie"))) return false;
 
@@ -26,11 +33,12 @@ export async function autoFillProductNutrition(businessId: string, productId: st
       data: {
         calories: result.calories,
         allergens: result.allergens,
+        allergenKeys: mapAllergenText(result.allergens),
         vegan: result.vegan,
         vegetarian: result.vegetarian,
         glutenFree: result.glutenFree,
-        // Otomatik etiketleme sonrası menüde görünsün; işletme panelden düzeltebilir
-        aiApproved: true,
+        aiApproved: false,
+        aiPending: true,
       },
     });
     return true;

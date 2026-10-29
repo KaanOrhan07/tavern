@@ -10,6 +10,7 @@ type Row = {
   active: boolean;
   role: string;
   lastLoginAt: string | null;
+  twoFactorEnabled?: boolean;
   createdAt: string;
   createdByLabel: string | null;
 };
@@ -103,6 +104,17 @@ export function AdminsManager() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={a.active ? "ok" : "danger"}>{a.active ? "Aktif" : "Pasif"}</Badge>
+                  {a.twoFactorEnabled && <Badge tone="gold">2FA</Badge>}
+                  {a.twoFactorEnabled && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        if (confirm(`${a.name} için iki adımlı doğrulama sıfırlansın mı?`)) patch(a.id, { resetTwoFactor: true });
+                      }}
+                    >
+                      2FA sıfırla
+                    </Button>
+                  )}
                   <Button variant="ghost" onClick={() => patch(a.id, { active: !a.active })}>
                     {a.active ? "Pasifleştir" : "Aktifleştir"}
                   </Button>

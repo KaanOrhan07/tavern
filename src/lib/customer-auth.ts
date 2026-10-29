@@ -40,12 +40,12 @@ function hashOtp(otp: string) {
   return createHash("sha256").update(otp).digest("hex");
 }
 
+/**
+ * Geliştirme kolaylığı (ekranda kod + "000000" kabulü) YALNIZCA yerel geliştirmede (NODE_ENV !== "production") çalışır.
+ * 2.3.0: canlıda (production) hiçbir env ile açılamaz — test arka kapısı kapatıldı.
+ */
 function otpDebugEnabled() {
-  return (
-    process.env.NODE_ENV !== "production" ||
-    process.env.CUSTOMER_OTP_DEBUG === "1" ||
-    process.env.CUSTOMER_OTP_DEBUG === "true"
-  );
+  return process.env.NODE_ENV !== "production";
 }
 
 export async function createOtpChallenge(phone: string, purpose: OtpPurpose = "customer_otp") {
@@ -105,8 +105,7 @@ export async function verifyOtpChallenge(
   const limited = await rateLimitAsync(`otp-verify:${phone}`, { limit: 6, windowMs: 10 * 60 * 1000 });
   if (!limited.ok) return false;
   try {
-    // ⚠️ TEST AŞAMASI: debug modunda (dev veya CUSTOMER_OTP_DEBUG=1) "000000" her zaman geçerli.
-    // Netgsm canlıya alındığında CUSTOMER_OTP_DEBUG env'ini KALDIRIN (bu blok prod'da devre dışı kalır).
+    // Yalnızca yerel geliştirmede "000000" geçerli; production'da bypass false'tur (bkz. otpDebugEnabled).
     const bypass = otpDebugEnabled() && otp === "000000";
     const { payload } = await jwtVerify(challengeToken, secretKey());
     if (payload.purpose !== purpose) return false;

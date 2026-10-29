@@ -1,5 +1,7 @@
 "use client";
 
+import { qrOrderingEnabled, type OrderModeValue } from "@/lib/order-mode";
+
 import { useCallback, useMemo, useState } from "react";
 import { formatKurus } from "@/lib/utils";
 import { CustomerMenuApp } from "@/components/musteri/CustomerMenuApp";
@@ -36,6 +38,7 @@ export function CustomerTable({
   dailyProduct,
   suggestionEnabled,
   loyaltyEnabled,
+  allergenNote = null,
 }: {
   slug: string;
   businessName: string;
@@ -43,20 +46,27 @@ export function CustomerTable({
   bannerUrl: string | null;
   qrToken: string;
   tableName: string;
-  orderMode: "WAITER_ONLY" | "CUSTOMER_QR";
+  orderMode: OrderModeValue;
   menuCategories: PublicMenuCategory[];
   dailyProduct: PublicMenuProduct | null;
   suggestionEnabled: boolean;
   loyaltyEnabled: boolean;
+  allergenNote?: string | null;
 }) {
-  const canOrder = orderMode === "CUSTOMER_QR";
+  const canOrder = qrOrderingEnabled(orderMode);
   const [bill, setBill] = useState<BillItem[] | null>(null);
+  const [reviewEnabled, setReviewEnabled] = useState(false);
+  // Hesap görüldükten sonra ödendi/kapandı ise teşekkür + Google yorum kartı gösterilir
+  const [sawOrder, setSawOrder] = useState(false);
 
   const loadBill = useCallback(async () => {
     const res = await fetch(`/api/public/table/${qrToken}`);
     if (res.ok) {
       const data = await res.json();
-      setBill(data.order?.items ?? []);
+      const items: BillItem[] = data.order?.items ?? [];
+      if (items.length > 0) setSawOrder(true);
+      setReviewEnabled(Boolean(data.reviewEnabled));
+      setBill(items);
     }
   }, [qrToken]);
 
@@ -69,8 +79,28 @@ export function CustomerTable({
     return { total, remaining: total - paid };
   }, [bill]);
 
+  const settled =
+    bill !== null &&
+    sawOrder &&
+    (bill.length === 0 || bill.every((i) => i.paidQuantity >= i.quantity));
+
   return (
     <div>
+      {settled && reviewEnabled && (
+        <section className="mb-6 rounded-xl border border-gold/40 bg-gold/10 p-4 text-center">
+          <p className="font-medium">Teşekkürler, afiyet olsun! 🙏</p>
+          <p className="mt-1 text-sm text-cream-dim">Deneyiminizi Google&apos;da paylaşırsanız çok seviniriz.</p>
+          <a
+            href={`/${slug}/yorum`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-block rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-ink"
+          >
+            ⭐ Google&apos;da Değerlendir
+          </a>
+        </section>
+      )}
+
       {bill !== null && bill.length > 0 && (
         <section className="mb-6 rounded-xl border border-ink-line bg-ink-card">
           <p className="border-b border-ink-line p-4 text-sm font-medium">Hesabınız</p>
@@ -117,6 +147,7 @@ export function CustomerTable({
         loyaltyEnabled={loyaltyEnabled}
         startOnWelcome
         onOrderSubmitted={loadBill}
+        allergenNote={allergenNote}
       />
     </div>
   );

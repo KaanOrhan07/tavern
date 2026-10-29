@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Badge, Button, Card, EmptyState, Input, Label } from "@/components/ui";
+import { Check, ChevronLeft, ChevronRight, Clock, UserX, X } from "lucide-react";
+import { Badge, Button, Card, EmptyState, Input, Label, PageHeader, Segmented, Skeleton, StatCard } from "@/components/ui";
 import { formatKurus } from "@/lib/utils";
 import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { DEFAULT_BUSINESS_TZ, addDaysYmd, formatDateInTz, todayYmdInTz } from "@/lib/business-timezone";
@@ -78,7 +79,7 @@ export function AppointmentsBoard() {
     }
   }, [weekStart]);
 
-  useVisibleInterval(load, 25_000);
+  useVisibleInterval(load, 25_000, ["appointments"]);
 
   async function act(
     id: string,
@@ -150,7 +151,19 @@ export function AppointmentsBoard() {
   }, [weekItems, weekStart, staffFilter]);
 
   if (items === null) {
-    return <p className="text-sm text-cream-dim">Yükleniyor...</p>;
+    return (
+      <div className="space-y-5">
+        <Skeleton className="h-16 rounded-xl" />
+        <div className="grid grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-xl" />
+          ))}
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-28 rounded-xl" />
+        ))}
+      </div>
+    );
   }
 
   function renderCard(a: Appointment, muted = false) {
@@ -210,7 +223,7 @@ export function AppointmentsBoard() {
             {pending && (
               <>
                 <Button type="button" disabled={busyId === a.id} onClick={() => act(a.id, "approve")}>
-                  Onayla
+                  <Check className="h-4 w-4" aria-hidden /> Onayla
                 </Button>
                 <Button
                   type="button"
@@ -218,7 +231,7 @@ export function AppointmentsBoard() {
                   disabled={busyId === a.id}
                   onClick={() => act(a.id, "reject", { note: "Uygun değil" })}
                 >
-                  Reddet
+                  <X className="h-4 w-4" aria-hidden /> Reddet
                 </Button>
                 <Button
                   type="button"
@@ -229,17 +242,17 @@ export function AppointmentsBoard() {
                     setProposeStart(a.startAt.slice(0, 16));
                   }}
                 >
-                  Alternatif saat
+                  <Clock className="h-4 w-4" aria-hidden /> Alternatif saat
                 </Button>
               </>
             )}
             {active && (
               <>
                 <Button type="button" disabled={busyId === a.id} onClick={() => act(a.id, "complete")}>
-                  Tamamlandı
+                  <Check className="h-4 w-4" aria-hidden /> Tamamlandı
                 </Button>
                 <Button type="button" variant="ghost" disabled={busyId === a.id} onClick={() => act(a.id, "no_show")}>
-                  Gelmedi
+                  <UserX className="h-4 w-4" aria-hidden /> Gelmedi
                 </Button>
                 <Button
                   type="button"
@@ -247,7 +260,7 @@ export function AppointmentsBoard() {
                   disabled={busyId === a.id}
                   onClick={() => act(a.id, "cancel", { note: "İşletme iptal" })}
                 >
-                  İptal
+                  <X className="h-4 w-4" aria-hidden /> İptal
                 </Button>
               </>
             )}
@@ -287,23 +300,31 @@ export function AppointmentsBoard() {
 
   return (
     <div className="space-y-5">
-      {error && <p className="text-sm text-danger">{error}</p>}
+      <PageHeader
+        title="Randevular"
+        subtitle={role === "staff" ? "Yalnızca size atanan randevular." : "Onay, program ve haftalık takvim."}
+        actions={
+          <Segmented
+            label="Görünüm"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "list", label: "Liste" },
+              { value: "week", label: "Takvim" },
+            ]}
+          />
+        }
+      />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-1 rounded-lg border border-ink-line p-1">
-          {(["list", "week"] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setView(v)}
-              className={`rounded-md px-3 py-1.5 text-sm cursor-pointer ${
-                view === v ? "bg-gold text-ink font-semibold" : "text-cream-dim hover:text-cream"
-              }`}
-            >
-              {v === "list" ? "Liste" : "Haftalık Takvim"}
-            </button>
-          ))}
-        </div>
+      {error && <p className="rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+
+      <div className="grid grid-cols-3 gap-3">
+        <StatCard label="Onay bekleyen" value={groups.waiting.length} tone={groups.waiting.length > 0 ? "warn" : "default"} />
+        <StatCard label="Bugün" value={groups.today.length} hint="onaylı" />
+        <StatCard label="Yaklaşan" value={groups.upcoming.length} />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {role === "owner" && staffList.length > 1 && (
           <div className="flex flex-wrap gap-1.5">
             <button
@@ -331,19 +352,16 @@ export function AppointmentsBoard() {
           </div>
         )}
       </div>
-      {role === "staff" && (
-        <p className="text-xs text-cream-dim">Yalnızca size atanan randevular gösterilir.</p>
-      )}
 
       {view === "week" && (
         <section className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <Button variant="secondary" onClick={() => setWeekStart(addDaysYmd(weekStart, -7))}>
-              ◀ Önceki Hafta
+              <ChevronLeft className="h-4 w-4" aria-hidden /> Önceki
             </Button>
             <p className="text-sm font-medium">{weekLabel}</p>
             <Button variant="secondary" onClick={() => setWeekStart(addDaysYmd(weekStart, 7))}>
-              Sonraki Hafta ▶
+              Sonraki <ChevronRight className="h-4 w-4" aria-hidden />
             </Button>
           </div>
           <div className="grid gap-2 md:grid-cols-7">

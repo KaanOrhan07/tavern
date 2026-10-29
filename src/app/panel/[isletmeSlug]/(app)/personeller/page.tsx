@@ -18,7 +18,7 @@ export default async function StaffPage({
   const staff = await prisma.user.findMany({
     where: { businessId: session.businessId, role: "STAFF" },
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, pin: true, pinHash: true, active: true },
+    select: { id: true, name: true, pin: true, pinHash: true, active: true, imageUrl: true },
   });
 
   return (
@@ -28,6 +28,7 @@ export default async function StaffPage({
         name: s.name,
         active: s.active,
         hasPin: Boolean(s.pinHash || s.pin),
+        imageUrl: s.imageUrl,
       }))}
     />
   );

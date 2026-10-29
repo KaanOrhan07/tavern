@@ -19,6 +19,66 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* ============================================================
+ * 3.0 tasarım sistemi — hareket, yükseklik (elevation) ve grafik tokenları
+ * Tüm bileşenler bu tokenları kullanır; ham değer yazılmaz.
+ * ============================================================ */
+:root {
+  /* Hareket: varış = yavaşlayarak, çıkış = hızlanarak; çıkış girişten kısa */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.64, 0, 0.78, 0);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 380ms;
+
+  /* Yükseklik (gölge) ölçeği */
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.18);
+  --shadow-2: 0 4px 14px rgb(0 0 0 / 0.22);
+  --shadow-3: 0 12px 36px rgb(0 0 0 / 0.32);
+  --shadow-glow: 0 0 0 1px color-mix(in srgb, var(--color-gold) 40%, transparent),
+    0 8px 28px color-mix(in srgb, var(--color-gold) 22%, transparent);
+
+  /* Grafik paleti: renk körlüğüne dayanıklı, her biri hem koyu hem açık zeminde ≥3:1 */
+  --chart-1: #b779ff;
+  --chart-2: #3ec5b5;
+  --chart-3: #f0b24a;
+  --chart-4: #ff7a8a;
+  --chart-5: #5aa9ff;
+  --chart-6: #8fd16a;
+  --chart-grid: color-mix(in srgb, var(--color-ink-line) 70%, transparent);
+  --chart-axis: var(--color-cream-dim);
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Panel açık tema (Katman A): işletme sahibi parlak mutfak/salonda okuyabilsin */
+[data-panel-theme="light"] {
+  --color-ink: #f5f5f7;
+  --color-ink-soft: #ececf0;
+  --color-ink-card: #ffffff;
+  --color-ink-line: #d9d9e0;
+  --color-gold: #8a2be2;
+  --color-gold-light: #a54cff;
+  --color-gold-dark: #7522c4;
+  --color-cream: #1c1c22;
+  --color-cream-dim: #5c5c68;
+  --color-ok: #2f8a3a;
+  --color-warn: #a3691f;
+  --color-danger: #b8402f;
+  --shadow-1: 0 1px 2px rgb(20 20 30 / 0.08);
+  --shadow-2: 0 4px 14px rgb(20 20 30 / 0.1);
+  --shadow-3: 0 12px 36px rgb(20 20 30 / 0.16);
+  --chart-1: #7b2fd6;
+  --chart-2: #0f8f82;
+  --chart-3: #b87a12;
+  --chart-4: #d63a54;
+  --chart-5: #1f6fd1;
+  --chart-6: #4a8a1f;
+  color-scheme: light;
+}
+
 html {
   overflow-x: clip;
 }
@@ -103,6 +163,19 @@ body {
   scrollbar-color: var(--color-ink-line) transparent;
 }
 
+/* Erişilebilir odak halkası (klavye): kaldırılmaz, ince ve belirgin */
+:where(a, button, [role="button"], [role="tab"], [role="switch"], summary, input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* Dokunmatik: 300 ms gecikmeyi kaldır */
+:where(a, button, [role="button"], summary, label) {
+  touch-action: manipulation;
+}
+
+/* ---------- Keyframes ---------- */
 @keyframes menu-fade-up {
   from {
     opacity: 0;
@@ -111,5 +184,227 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes ring-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-gold) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: var(--len, 1000);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes grow-up {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes kenburns {
+  from {
+    transform: scale(1.04);
+  }
+  to {
+    transform: scale(1.12);
+  }
+}
+
+/* ---------- Yardımcı sınıflar ---------- */
+.anim-fade-in {
+  animation: fade-in var(--dur-base) var(--ease-out) both;
+}
+.anim-scale-in {
+  animation: scale-in var(--dur-base) var(--ease-out) both;
+}
+.anim-fade-up {
+  animation: menu-fade-up var(--dur-slow) var(--ease-out) both;
+}
+.anim-sheet-up {
+  animation: sheet-up var(--dur-slow) var(--ease-out) both;
+}
+.anim-slide-right {
+  animation: slide-in-right var(--dur-base) var(--ease-out) both;
+}
+.anim-pop {
+  animation: pop var(--dur-base) var(--ease-spring);
+}
+
+/* Liste girişlerini 40 ms arayla sırala: style="--i: 3" */
+.stagger > * {
+  animation: menu-fade-up var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+/* Basılı geri bildirim: düzen (layout) kaymaz, yalnızca transform */
+.pressable {
+  transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+
+.skeleton {
+  background: linear-gradient(
+    100deg,
+    var(--color-ink-soft) 30%,
+    color-mix(in srgb, var(--color-ink-line) 70%, var(--color-ink-soft)) 50%,
+    var(--color-ink-soft) 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: 0.5rem;
+}
+
+.glass {
+  background: color-mix(in srgb, var(--color-ink) 72%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, var(--safe-bottom));
+}
+
+/* Kaydırma kenar solması (yatay şeritler için) */
+.fade-edges {
+  mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+}
+
+/* 3.1.0: Akan gradyan (aurora) — randevu sayfası arka planı.
+   Scroll ilerlemesi JS'ten --sp (0..1) olarak gelir; opaklık ve konum onunla oynar. */
+@keyframes aurora-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+.aurora {
+  background-image: linear-gradient(
+    130deg,
+    color-mix(in srgb, var(--color-gold) 26%, transparent) 0%,
+    transparent 38%,
+    color-mix(in srgb, var(--color-gold-light) 20%, transparent) 62%,
+    transparent 100%
+  );
+  background-size: 240% 240%;
+  animation: aurora-shift 20s var(--ease-in-out, ease-in-out) infinite;
+  opacity: calc(0.35 + 0.5 * var(--sp, 0));
+  transform: translate3d(0, calc(var(--sp, 0) * -6%), 0);
+  will-change: opacity, transform;
+}
+
+/* Hareketi azalt: sistem ayarına saygı (erişilebilirlik) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

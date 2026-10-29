@@ -14,6 +14,18 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/panel/reports/daily-pdf": ["./src/assets/fonts/**"],
   },
+  // Service worker: her zaman güncel kontrol edilsin; kapsam /panel/
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/panel/" },
+        ],
+      },
+    ];
+  },
   // Büyük paketlerin import süresini kısaltır
   experimental: {
     optimizePackageImports: ["qrcode"],

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { ArrowRight, Info, Navigation, UtensilsCrossed } from "lucide-react";
 import { toDisplayImageUrl } from "@/lib/storage-url";
 
 type Category = {
@@ -12,46 +13,53 @@ type Category = {
   products: unknown[];
 };
 
-const CATEGORY_GLYPHS = ["◎", "◇", "✦", "◈", "○", "△", "□", "✧"];
-
-function CategoryTileVisual({
+function CategoryTile({
   category,
   index,
+  solo,
+  onSelect,
 }: {
   category: Category;
   index: number;
+  solo: boolean;
+  onSelect: () => void;
 }) {
   const resolved = category.imageUrl ? toDisplayImageUrl(category.imageUrl) : null;
   const [failed, setFailed] = useState(false);
-
-  if (resolved && !failed) {
-    return (
-      <span className="relative mb-0.5 h-10 w-10 overflow-hidden rounded-xl ring-1 ring-gold/30">
-        <Image
-          src={resolved}
-          alt=""
-          fill
-          className="object-cover"
-          sizes="40px"
-          unoptimized={resolved.startsWith("/api/")}
-          onError={() => setFailed(true)}
-        />
-      </span>
-    );
-  }
-
-  if (category.icon) {
-    return (
-      <span className="text-lg text-gold" aria-hidden>
-        {category.icon}
-      </span>
-    );
-  }
+  const hasImage = Boolean(resolved) && !failed;
 
   return (
-    <span className="text-lg text-gold" aria-hidden>
-      {CATEGORY_GLYPHS[index % CATEGORY_GLYPHS.length]}
-    </span>
+    <button
+      type="button"
+      onClick={onSelect}
+      style={{ ["--i" as string]: Math.min(index, 10) }}
+      className={`anim-fade-up pressable group relative isolate flex min-h-[7.5rem] cursor-pointer flex-col justify-end overflow-hidden rounded-3xl border border-white/10 p-3.5 text-start shadow-[var(--shadow-2)] ${
+        solo ? "col-span-full" : ""
+      }`}
+      aria-label={`${category.name} kategorisi, ${category.products.length} ürün`}
+    >
+      {hasImage ? (
+        <Image
+          src={resolved!}
+          alt=""
+          fill
+          sizes="(max-width: 640px) 50vw, 33vw"
+          className="-z-10 object-cover transition-transform duration-500 group-hover:scale-105"
+          unoptimized={resolved!.startsWith("/api/")}
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="absolute inset-0 -z-10 bg-gradient-to-br from-gold/30 via-ink-card to-ink-soft" />
+      )}
+      <span className="absolute inset-0 -z-10 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+      {!hasImage && (
+        <span className="absolute end-3 top-3 text-2xl text-gold/90" aria-hidden>
+          {category.icon || <UtensilsCrossed className="h-6 w-6" />}
+        </span>
+      )}
+      <span className="text-[15px] font-semibold leading-snug text-white drop-shadow">{category.name}</span>
+      <span className="text-xs text-white/70">{category.products.length} ürün</span>
+    </button>
   );
 }
 
@@ -73,7 +81,7 @@ export function MenuWelcome({
   onSelectCategory: (categoryId: string) => void;
 }) {
   const [mapsUrl, setMapsUrl] = useState<string | null>(null);
-  const [socials, setSocials] = useState<{ label: string; icon: string; href: string }[]>([]);
+  const [socials, setSocials] = useState<{ label: string; href: string }[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,18 +93,16 @@ export function MenuWelcome({
         if (b.mapsUrl) {
           setMapsUrl(b.mapsUrl);
         } else if (b.address) {
-          setMapsUrl(
-            `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(b.address)}`
-          );
+          setMapsUrl(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(b.address)}`);
         }
         const links = [
-          { label: "Instagram", icon: "📸", href: b.instagramUrl },
-          { label: "TikTok", icon: "🎵", href: b.tiktokUrl },
-          { label: "YouTube", icon: "▶", href: b.youtubeUrl },
-          { label: "Facebook", icon: "f", href: b.facebookUrl },
-          { label: "LinkedIn", icon: "in", href: b.linkedinUrl },
-          { label: "Web sitesi", icon: "🌐", href: b.websiteUrl },
-        ].filter((l): l is { label: string; icon: string; href: string } => Boolean(l.href));
+          { label: "Instagram", href: b.instagramUrl },
+          { label: "TikTok", href: b.tiktokUrl },
+          { label: "YouTube", href: b.youtubeUrl },
+          { label: "Facebook", href: b.facebookUrl },
+          { label: "LinkedIn", href: b.linkedinUrl },
+          { label: "Web sitesi", href: b.websiteUrl },
+        ].filter((l): l is { label: string; href: string } => Boolean(l.href));
         setSocials(links);
       })
       .catch(() => undefined);
@@ -120,19 +126,19 @@ export function MenuWelcome({
 
   return (
     <div className="fixed inset-0 z-40 flex h-dvh max-h-dvh flex-col overflow-hidden bg-ink text-cream overscroll-none">
-      <div className="absolute inset-0 overflow-hidden">
+      {/* Atmosfer: yavaş yakınlaşan kapak görseli + derin degrade */}
+      <div className="absolute inset-0 overflow-hidden" aria-hidden>
         {resolvedBanner ? (
           <Image
             src={resolvedBanner}
             alt=""
             fill
-            className="object-cover scale-105 blur-sm brightness-[0.45]"
+            className="object-cover brightness-[0.55] [animation:kenburns_18s_ease-out_forwards]"
             sizes="100vw"
             priority
             unoptimized={resolvedBanner.startsWith("/api/")}
           />
         ) : resolvedLogo ? (
-          // Banner yoksa logo bulanık arka plan olarak kullanılır
           <Image
             src={resolvedLogo}
             alt=""
@@ -142,97 +148,92 @@ export function MenuWelcome({
             unoptimized={resolvedLogo.startsWith("/api/")}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-b from-ink-soft via-ink to-ink" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,color-mix(in_srgb,var(--color-gold)_30%,transparent),transparent_60%)]" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-ink/40 via-ink/70 to-ink" />
+        <div className="absolute inset-0 bg-gradient-to-b from-ink/30 via-ink/75 to-ink" />
       </div>
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col px-5 pt-[max(4.25rem,calc(env(safe-area-inset-top)+3.5rem))] pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-        <div className="flex shrink-0 flex-col items-center text-center opacity-0 [animation:menu-fade-up_0.5s_ease-out_forwards]">
+        <header className="anim-fade-up flex shrink-0 flex-col items-center text-center">
           {resolvedLogo ? (
             <Image
               src={resolvedLogo}
               alt={businessName}
-              width={80}
-              height={80}
-              className="h-20 w-20 rounded-2xl object-cover ring-1 ring-gold/40"
+              width={88}
+              height={88}
+              className="h-[5.5rem] w-[5.5rem] rounded-3xl object-cover shadow-[var(--shadow-3)] ring-2 ring-gold/50"
               priority
               unoptimized={resolvedLogo.startsWith("/api/")}
             />
           ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gold/20 text-2xl font-semibold text-gold ring-1 ring-gold/40">
+            <div className="flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-3xl bg-gold/20 text-3xl font-semibold text-gold ring-2 ring-gold/50">
               {businessName.slice(0, 1)}
             </div>
           )}
-          <h1 className="mt-3 text-xl font-semibold tracking-tight text-cream sm:text-2xl">
+          <h1 className="mt-4 text-balance text-[1.75rem] leading-tight font-semibold tracking-tight text-cream [font-family:var(--tv-heading-font,inherit)]">
             {businessName}
           </h1>
           <p className="mt-1 text-sm text-cream-dim">Menümüze hoş geldiniz</p>
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-sm">
+
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-sm">
             {mapsUrl && (
               <a
                 href={mapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gold underline-offset-2 hover:underline"
+                className="pressable flex min-h-10 items-center gap-1.5 rounded-full border border-white/15 bg-black/30 px-3.5 text-cream backdrop-blur-md hover:bg-black/45"
               >
-                Yol Tarifi Al
+                <Navigation className="h-4 w-4 text-gold" aria-hidden />
+                Yol tarifi
               </a>
             )}
             <a
               href={`/${slug}/bilgi`}
-              className="text-cream-dim underline-offset-2 hover:underline"
+              className="pressable flex min-h-10 items-center gap-1.5 rounded-full border border-white/15 bg-black/30 px-3.5 text-cream backdrop-blur-md hover:bg-black/45"
             >
-              İşletme Bilgisi
+              <Info className="h-4 w-4 text-gold" aria-hidden />
+              İşletme bilgisi
             </a>
           </div>
           {socials.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
               {socials.map((s) => (
                 <a
                   key={s.label}
                   href={s.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={s.label}
-                  title={s.label}
-                  className="flex h-9 min-w-9 items-center justify-center rounded-full border border-gold/30 bg-ink/50 px-2.5 text-xs font-semibold text-gold backdrop-blur-md transition-colors hover:bg-ink/70"
+                  className="pressable flex min-h-9 items-center rounded-full px-3 text-xs font-medium text-cream-dim underline-offset-4 hover:text-gold hover:underline"
                 >
-                  {s.icon}
+                  {s.label}
                 </a>
               ))}
             </div>
           )}
-        </div>
+        </header>
 
-        <div className="mt-5 grid min-h-0 flex-1 grid-cols-2 content-start gap-2.5 overflow-y-auto overscroll-contain pb-3 opacity-0 [animation:menu-fade-up_0.65s_ease-out_forwards] [-webkit-overflow-scrolling:touch] sm:grid-cols-3">
+        <div className="stagger mt-5 grid min-h-0 flex-1 grid-cols-2 content-start gap-3 overflow-y-auto overscroll-contain pb-3 [-webkit-overflow-scrolling:touch] sm:grid-cols-3">
           {categories.length === 0 && (
-            <p className="col-span-full mt-6 text-center text-sm text-cream-dim">
-              Menü yakında burada olacak.
-            </p>
+            <p className="col-span-full mt-6 text-center text-sm text-cream-dim">Menü yakında burada olacak.</p>
           )}
-          {/* Tek kategori varsa kart tam genişlikte, çoklu kategoride gerçek grid */}
           {categories.map((category, index) => (
-            <button
+            <CategoryTile
               key={category.id}
-              type="button"
-              onClick={() => onSelectCategory(category.id)}
-              className={`flex min-h-[4.75rem] flex-col items-center justify-center gap-1.5 rounded-2xl border border-gold/25 bg-ink/55 px-2.5 py-3 text-center backdrop-blur-md transition-colors active:bg-ink/70 cursor-pointer ${
-                categories.length === 1 ? "col-span-full" : ""
-              }`}
-            >
-              <CategoryTileVisual category={category} index={index} />
-              <span className="text-sm font-medium leading-snug">{category.name}</span>
-            </button>
+              category={category}
+              index={index}
+              solo={categories.length === 1}
+              onSelect={() => onSelectCategory(category.id)}
+            />
           ))}
         </div>
 
         <button
           type="button"
           onClick={onOpenMenu}
-          className="relative z-10 mt-2 w-full shrink-0 rounded-xl bg-gold py-3.5 text-base font-semibold text-ink shadow-[0_8px_30px_rgba(212,168,87,0.25)] transition-transform active:scale-[0.99] cursor-pointer opacity-0 [animation:menu-fade-up_0.8s_ease-out_forwards]"
+          className="anim-fade-up pressable relative z-10 mt-2 flex min-h-14 w-full shrink-0 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gold text-base font-semibold text-ink shadow-[var(--shadow-glow)] hover:bg-gold-light"
         >
-          Menüyü Gör
+          Menüyü gör
+          <ArrowRight className="h-5 w-5" aria-hidden />
         </button>
       </div>
     </div>

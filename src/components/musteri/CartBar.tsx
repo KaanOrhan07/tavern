@@ -104,7 +104,7 @@ export function CartBar({
         className="absolute inset-0 bg-ink/70 backdrop-blur-sm cursor-pointer"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-2xl rounded-t-2xl border border-ink-line bg-ink-card p-4 [animation:sheet-up_0.28s_ease-out]">
+      <div className="relative z-10 w-full max-w-2xl rounded-t-3xl border border-ink-line bg-ink-card p-4 anim-sheet-up">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-ink-line" />
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Sepet</h2>

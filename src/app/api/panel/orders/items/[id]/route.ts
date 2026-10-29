@@ -1,3 +1,4 @@
+import { broadcastBusiness } from "@/lib/realtime";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -88,6 +89,7 @@ export async function PATCH(
   if (updated.count === 0) {
     return NextResponse.json({ error: "Kalem bulunamadı" }, { status: 404 });
   }
+  broadcastBusiness(ctx.business.id, "orders", "kitchen");
   return NextResponse.json({ ok: true });
 }
 
@@ -101,6 +103,7 @@ export async function DELETE(
   const { id } = await params;
   try {
     await removeOrderItem(ctx.business.id, id);
+    broadcastBusiness(ctx.business.id, "orders", "kitchen", "tables");
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(

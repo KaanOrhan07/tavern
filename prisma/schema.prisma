@@ -21,6 +21,7 @@ model BusinessType {
 enum OrderMode {
   WAITER_ONLY // Sadece garson sipariş girer, müşteri QR menüyü sadece görür
   CUSTOMER_QR // Müşteri QR ile kendi sipariş verir
+  BOTH // 2.3.0: garson ve müşteri QR siparişi aynı anda
 }
 
 enum Theme {
@@ -50,6 +51,10 @@ model Business {
   bannerUrl String?   // İşletme banner görseli (müşteri menüsü)
   kitchenCompletedClearMinutes Int @default(30) // Adisyon: tamamlanan kartların ekranda kalma süresi
   geofenceEnabled Boolean @default(true) // 2.2.1: QR menü 100 m konum kısıtı (koordinat varsa)
+  allergenNote    String? // 2.3.0: menüde gösterilen alerjen/içerik uyarı notu (boşsa varsayılan)
+  googleReviewUrl String? // 2.3.0: Google yorum bağlantısı (ödeme sonrası + NFC kart)
+  reviewClicks    Int     @default(0)
+  invoiceProvider String  @default("none") // 2.3.0: e-Arşiv/e-Adisyon entegratörü (none = kapalı)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -93,6 +98,11 @@ model Business {
   loyaltyTransactions  LoyaltyTransaction[]
   customerBusinessStats CustomerBusinessStats[]
 
+  // 2.3.0
+  deviceTokens   DeviceToken[]
+  printJobs      PrintJob[]
+  invoiceRecords InvoiceRecord[]
+
   @@index([organizationId])
 }
 
@@ -125,6 +135,7 @@ model User {
   pinHash        String? // bcrypt hash (STAFF)
   pinFingerprint String? // HMAC ile işletme içi benzersizlik
   active         Boolean  @default(true)
+  imageUrl       String?  // 3.1.0: personel avatarı (randevu seçiminde gösterilir)
   sessionVersion Int      @default(1)
   locale         Locale   @default(TR)
   createdAt      DateTime @default(now())
@@ -220,6 +231,13 @@ model Product {
   vegetarian  Boolean  @default(false)
   glutenFree  Boolean  @default(false)
   aiApproved  Boolean  @default(false)
+  aiPending   Boolean  @default(false) // 2.3.0: AI etiketi hesaplandı, işletme onayı bekliyor
+
+  // 2.3.0: içerik bilgisi (müşteriye gösterilir)
+  ingredientsText String? // "İçindekiler" listesi (boşsa reçete malzemelerinden üretilir)
+  containsAlcohol Boolean  @default(false)
+  containsPork    Boolean  @default(false)
+  allergenKeys    String[] @default([]) // AB 14 standart alerjen anahtarı (bkz. src/lib/allergens.ts)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -372,6 +390,8 @@ model OrderItem {
 enum PaymentMethod {
   CASH
   CARD
+  MEAL_CARD // 2.3.0: yemek kartı (Multinet, Sodexo, Edenred, Metropol, SetCard…)
+  OTHER // 2.3.0: diğer (havale, çek, ikram…)
 }
 
 model Payment {
@@ -381,6 +401,7 @@ model Payment {
   orderId     String
   order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   method      PaymentMethod
+  methodDetail String? // 2.3.0: yemek kartı markası / diğer açıklaması
   amountKurus Int
   createdAt   DateTime      @default(now())
 
@@ -539,6 +560,8 @@ model Service {
   durationMinutes Int
   priceKurus      Int
   active          Boolean  @default(true)
+  imageUrl        String?  // 3.1.0: randevu kartında gösterilen hizmet görseli
+  description     String?  // 3.1.0: hizmet kısa açıklaması (randevu kartı)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -746,7 +769,9 @@ model AdminUser {
   role            AdminRole @default(SUPER_ADMIN)
   active          Boolean   @default(true)
   sessionVersion  Int       @default(1)
-  twoFactorSecret String?
+  twoFactorSecret String? // 2.3.0: AES-256-GCM şifreli TOTP sırrı
+  twoFactorEnabled Boolean @default(false)
+  twoFactorLastStep Int? // yeniden kullanım (replay) koruması
   lastLoginAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -995,6 +1020,7 @@ model BusinessInfo {
   linkedinUrl  String?
   mapsUrl      String? // 2.2.1: Google Maps işletme linki (koordinat bundan çıkarılır)
   description  String?
+  galleryUrls  String[] @default([]) // 3.1.0: randevu sayfasında gösterilen işletme galerisi
   updatedAt    DateTime @updatedAt
 }
 
@@ -1080,4 +1106,78 @@ model AdminNotification {
   createdAt  DateTime  @default(now())
 
   @@index([createdAt])
+}
+
+// ============ 2.3.0 — CİHAZLAR / YAZDIRMA / FATURA ============
+
+enum DeviceKind {
+  PRINT_AGENT // masaüstü yazdırma ajanı (yalnızca yazdırma uçları)
+  DESKTOP
+  MOBILE
+}
+
+/// Native uygulamalar ve yazdırma ajanı için uzun ömürlü cihaz anahtarı (yalnızca hash saklanır)
+model DeviceToken {
+  id          String     @id @default(cuid())
+  businessId  String
+  business    Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  kind        DeviceKind
+  name        String
+  tokenHash   String     @unique
+  createdById String?
+  lastSeenAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime   @default(now())
+
+  @@index([businessId, kind])
+}
+
+enum PrintJobStatus {
+  PENDING
+  PRINTING
+  DONE
+  FAILED
+}
+
+/// Yazdırma kuyruğu: sipariş geldiğinde sunucu iş ekler, masaüstü ajanı çekip yazdırır
+model PrintJob {
+  id         String         @id @default(cuid())
+  businessId String
+  business   Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  kind       String // KITCHEN_TICKET | RECEIPT | TEST
+  printerKey String         @default("kitchen")
+  payload    Json
+  status     PrintJobStatus @default(PENDING)
+  attempts   Int            @default(0)
+  claimedAt  DateTime?
+  claimedBy  String?
+  doneAt     DateTime?
+  error      String?
+  createdAt  DateTime       @default(now())
+
+  @@index([businessId, status, createdAt])
+}
+
+enum InvoiceStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+/// e-Arşiv / e-Adisyon kaydı — entegratör bağlanınca iş akışı bu tabloyu kullanır
+model InvoiceRecord {
+  id         String        @id @default(cuid())
+  businessId String
+  business   Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  orderId    String        @unique
+  status     InvoiceStatus @default(PENDING)
+  provider   String
+  externalId String?
+  pdfUrl     String?
+  error      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([businessId, status])
 }

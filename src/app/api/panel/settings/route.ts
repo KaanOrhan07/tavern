@@ -3,9 +3,10 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
 import { getGeofence } from "@/lib/geofence";
+import { qrOrderingEnabled } from "@/lib/order-mode";
 
 const schema = z.object({
-  orderMode: z.enum(["WAITER_ONLY", "CUSTOMER_QR"]).optional(),
+  orderMode: z.enum(["WAITER_ONLY", "CUSTOMER_QR", "BOTH"]).optional(),
   theme: z.enum(["LIGHT", "DARK"]).optional(),
   name: z.string().min(1).max(80).optional(),
   kitchenCompletedClearMinutes: z.number().int().min(5).max(480).optional(),
@@ -45,7 +46,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Geçersiz istek" }, { status: 400 });
   }
   // Konum şart: müşteri QR siparişi yalnızca Google Maps konumu tanımlı + konum kısıtı açıkken açılabilir
-  if (body.data.orderMode === "CUSTOMER_QR") {
+  if (body.data.orderMode && qrOrderingEnabled(body.data.orderMode)) {
     const fence = await getGeofence(ctx.business.id);
     if (!fence) {
       return NextResponse.json(

@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 const ADMIN_COOKIE = "tavern_admin";
 const PANEL_COOKIE = "tavern_session";
@@ -89,9 +89,17 @@ export async function destroyAdminSession() {
 
 // --- Panel (işletme sahibi + garson) ---
 
+/**
+ * Panel oturum JWT'si üretir. Web çerezi ve native uygulamaların (Bearer) kullandığı token AYNIDIR:
+ * remember=true → 90 gün, değilse 12 saat.
+ */
+export async function signPanelToken(session: PanelSession): Promise<string> {
+  return sign({ ...session }, session.remember === true ? "90d" : SESSION_DURATION);
+}
+
 export async function createPanelSession(session: PanelSession) {
   const remember = session.remember === true;
-  const token = await sign({ ...session }, remember ? "90d" : SESSION_DURATION);
+  const token = await signPanelToken(session);
   (await cookies()).set(PANEL_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -102,8 +110,17 @@ export async function createPanelSession(session: PanelSession) {
   });
 }
 
+/** Çerez (web) yoksa `Authorization: Bearer <jwt>` (masaüstü/mobil uygulama). Cihaz anahtarları (tvd_…) burada geçmez. */
+async function panelTokenFromRequest(): Promise<string | undefined> {
+  const fromCookie = (await cookies()).get(PANEL_COOKIE)?.value;
+  if (fromCookie) return fromCookie;
+  const auth = (await headers()).get("authorization");
+  const token = auth?.match(/^Bearers+(.+)$/i)?.[1]?.trim();
+  return token && !token.startsWith("tvd_") ? token : undefined;
+}
+
 export async function getPanelSession(): Promise<PanelSession | null> {
-  const token = (await cookies()).get(PANEL_COOKIE)?.value;
+  const token = await panelTokenFromRequest();
   if (!token) return null;
   const session = await verify<PanelSession>(token);
   if (!session || (session.role !== "owner" && session.role !== "staff")) return null;

@@ -4,10 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, isGuardError } from "@/lib/guard";
 import { writeAdminAudit } from "@/lib/audit";
 import { hashPassword, validateOwnerPassword } from "@/lib/password";
+import { reset2faFor } from "@/lib/admin-2fa";
 
 const patchSchema = z.object({
   active: z.boolean().optional(),
   password: z.string().min(1).max(200).optional(),
+  /** Cihaz kaybı: alt adminin iki adımlı doğrulamasını sıfırlar */
+  resetTwoFactor: z.boolean().optional(),
 });
 
 export async function PATCH(
@@ -33,6 +36,18 @@ export async function PATCH(
     if (pwError) return NextResponse.json({ error: pwError }, { status: 400 });
     data.passwordHash = await hashPassword(body.data.password);
     data.sessionVersion = { increment: 1 };
+  }
+  if (body.data.resetTwoFactor) {
+    await reset2faFor(id);
+    await writeAdminAudit({
+      admin: ctx.session,
+      action: "UPDATE",
+      entityType: "AdminUser",
+      entityId: id,
+      summary: `Alt admin 2FA sıfırlandı: ${target.name}`,
+      request,
+    });
+    if (Object.keys(data).length === 0) return NextResponse.json({ ok: true });
   }
   await prisma.adminUser.update({ where: { id }, data });
   await writeAdminAudit({

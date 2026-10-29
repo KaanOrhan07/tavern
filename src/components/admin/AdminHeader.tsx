@@ -11,6 +11,7 @@ const COMMON_LINKS = [
   { href: "/admin/abonelikler", label: "Abonelik / Ödeme" },
   { href: "/admin/musteriler", label: "Müşteriler" },
   { href: "/admin/canli-siparisler", label: "Canlı Siparişler" },
+  { href: "/admin/guvenlik", label: "Hesap Güvenliği (2FA)" },
 ];
 const SUPER_LINKS = [
   { href: "/admin/yoneticiler", label: "Yöneticiler" },

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, Input, Label, Toggle } from "@/components/ui";
+import { Button, Card, Input, Label, Select, Toggle } from "@/components/ui";
+import { INVOICE_PROVIDER_OPTIONS } from "@/lib/invoice/provider";
 import { FEATURES, type FeatureKey } from "@/lib/feature-defs";
 
 export function AdminBusinessControls({
@@ -10,12 +11,14 @@ export function AdminBusinessControls({
   businessName,
   active,
   featureMap,
+  invoiceProvider,
   isSuper,
 }: {
   businessId: string;
   businessName: string;
   active: boolean;
   featureMap: Record<FeatureKey, boolean>;
+  invoiceProvider: string;
   isSuper: boolean;
 }) {
   const router = useRouter();
@@ -23,6 +26,7 @@ export function AdminBusinessControls({
   const [features, setFeatures] = useState(featureMap);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [invoice, setInvoice] = useState(invoiceProvider);
 
   // Ana admin: kimlik bilgileri
   const [creds, setCreds] = useState<{ email: string | null; password: string | null; note: string | null } | null>(null);
@@ -48,6 +52,21 @@ export function AdminBusinessControls({
     }
     setBusy(false);
     router.refresh();
+  }
+
+  async function changeInvoiceProvider(value: string) {
+    setError(null);
+    const prev = invoice;
+    setInvoice(value);
+    const res = await fetch(`/api/admin/businesses/${businessId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoiceProvider: value }),
+    });
+    if (!res.ok) {
+      setInvoice(prev);
+      setError("Entegratör değiştirilemedi");
+    }
   }
 
   async function toggleFeature(featureKey: FeatureKey, enabled: boolean) {
@@ -133,6 +152,20 @@ export function AdminBusinessControls({
             </div>
           ))}
         </div>
+      </Card>
+
+      <Card>
+        <p className="mb-1 font-medium">e-Arşiv / e-Adisyon</p>
+        <p className="mb-3 text-xs text-cream-dim">
+          Entegratör seçilirse sipariş kapanınca fatura kaydı açılır ve kuyruktan iletilir. Şu an gerçek entegratör bağlı değil (hazırlık).
+        </p>
+        <Select value={invoice} onChange={(e) => changeInvoiceProvider(e.target.value)}>
+          {INVOICE_PROVIDER_OPTIONS.map((o) => (
+            <option key={o.key} value={o.key}>
+              {o.label}
+            </option>
+          ))}
+        </Select>
       </Card>
 
       {isSuper && (

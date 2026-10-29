@@ -6,15 +6,46 @@ import { adminKeyFingerprint, safeEqual } from "@/lib/crypto";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { writeAdminAudit } from "@/lib/audit";
+import { get2faState, totpBypassed, verify2faCode, type Actor } from "@/lib/admin-2fa";
 
 const schema = z.object({
   key: z.string().min(1).max(200),
   password: z.string().max(200).optional(),
+  /** 2.3.0: iki adımlı doğrulama kodu (yalnızca 2FA etkin hesaplarda gerekir) */
+  totp: z.string().max(10).optional(),
 });
 
 // Zamanlama farkını gizlemek için sahte hash (anahtar bulunamasa da bcrypt çalışır)
 let dummyHash: Promise<string> | null = null;
 const getDummyHash = () => (dummyHash ??= hashPassword("tavern-dummy-password"));
+
+/** Kimlik bilgisi doğrulandıktan sonra 2FA şartı: null → geç, aksi halde hata yanıtı. */
+async function require2fa(actor: Actor, totp: string | undefined, rateKey: string): Promise<NextResponse | null> {
+  if (totpBypassed()) return null;
+  const state = await get2faState(actor);
+  if (!state.enabled) return null;
+  if (!totp) {
+    return NextResponse.json({ error: "Doğrulama kodu gerekli", needTotp: true }, { status: 401 });
+  }
+  const limited = await rateLimitAsync(`admin-totp:${rateKey}`, { limit: 5, windowMs: 10 * 60 * 1000 });
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: "Çok fazla hatalı kod, lütfen bekleyin", needTotp: true },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSec) } }
+    );
+  }
+  const result = await verify2faCode(actor, totp.trim());
+  if (!result.ok) {
+    return NextResponse.json(
+      {
+        error: result.reason === "replay" ? "Bu kod zaten kullanıldı, yeni kodu bekleyin" : "Doğrulama kodu hatalı",
+        needTotp: true,
+      },
+      { status: 401 }
+    );
+  }
+  return null;
+}
 
 export async function POST(request: Request) {
   const ip = clientIp(request);
@@ -30,11 +61,13 @@ export async function POST(request: Request) {
   if (!body.success) {
     return NextResponse.json({ error: "Geçersiz istek" }, { status: 400 });
   }
-  const { key, password } = body.data;
+  const { key, password, totp } = body.data;
 
-  // 1) Ana admin: sabit env anahtarı, şifre YOK
+  // 1) Ana admin: sabit env anahtarı, şifre YOK (2FA etkinse kod şart)
   const adminKey = process.env.ADMIN_KEY;
   if (adminKey && safeEqual(key, adminKey)) {
+    const denied = await require2fa({ level: "super" }, totp, "super");
+    if (denied) return denied;
     await createAdminSession({ level: "super", adminName: "Ana Admin" });
     await writeAdminAudit({
       admin: { role: "admin", level: "super", adminName: "Ana Admin" },
@@ -46,7 +79,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, level: "super" });
   }
 
-  // 2) Alt admin: anahtar + şifre
+  // 2) Alt admin: anahtar + şifre (+ 2FA kodu)
   const admin = await prisma.adminUser.findUnique({
     where: { keyFingerprint: adminKeyFingerprint(key) },
   });
@@ -58,6 +91,9 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ error: "Anahtar veya şifre hatalı" }, { status: 401 });
   }
+
+  const denied = await require2fa({ level: "sub", adminUserId: admin.id }, totp, admin.id);
+  if (denied) return denied;
 
   await prisma.adminUser.update({ where: { id: admin.id }, data: { lastLoginAt: new Date() } });
   await createAdminSession({

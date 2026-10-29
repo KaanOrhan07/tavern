@@ -1,4 +1,5 @@
 import { NextResponse, after } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
@@ -122,5 +123,6 @@ export async function POST(request: Request) {
   // yanıt gönderildikten sonra arka planda çalışır (onay beklemez)
   after(() => autoFillProductNutrition(ctx.business.id, product.id));
 
+  revalidateTag(`menu:${ctx.business.id}`, "max");
   return NextResponse.json({ ok: true, product });
 }

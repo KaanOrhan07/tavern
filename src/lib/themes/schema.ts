@@ -8,6 +8,9 @@ export const ALLOWED_FONTS = [
   "Playfair Display",
   "Source Sans 3",
   "IBM Plex Sans",
+  "Space Grotesk",
+  "Orbitron",
+  "Syne",
 ] as const;
 
 export const themeUpdateSchema = z.object({

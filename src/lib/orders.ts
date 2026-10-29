@@ -5,6 +5,9 @@ import { afterDeduction, recipeDeductionBase } from "@/lib/units";
 import { earnLoyaltyPoints, redeemLoyaltyPoints, restoreLoyaltyRedeem } from "@/lib/loyalty";
 import { upsertCustomerBusinessStats } from "@/lib/customer-stats";
 import type { OrderSource } from "@/generated/prisma/client";
+import type { PaymentMethodValue } from "@/lib/payment-methods";
+import { enqueuePrintJob, kitchenTicketPayload } from "@/lib/print-queue";
+import { broadcastBusiness } from "@/lib/realtime";
 
 export type NewOrderItem = {
   productId: string;
@@ -41,7 +44,7 @@ export async function addItemsToTable(params: {
     isFeatureEnabled(businessId, "loyalty_points"),
   ]);
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const table = await tx.table.findFirst({
       where: { id: tableId, businessId },
     });
@@ -180,9 +183,28 @@ export async function addItemsToTable(params: {
       ticketItems: createdItems.map((i) => ({
         name: i.productName,
         quantity: i.quantity,
+        note: i.note,
       })),
     };
   });
+
+  // Transaction başarıyla bittikten sonra: mutfak fişini yazdırma kuyruğuna ekle + canlı ekranlara sinyal
+  try {
+    const jobId = await enqueuePrintJob({
+      businessId,
+      kind: "KITCHEN_TICKET",
+      payload: kitchenTicketPayload({
+        orderId: result.order.id,
+        tableName: result.tableName,
+        source,
+        items: result.ticketItems,
+      }),
+    });
+    broadcastBusiness(businessId, "orders", "kitchen", "notifications", ...(jobId ? (["print"] as const) : []));
+  } catch (err) {
+    console.error("[orders] yazdırma/realtime bildirimi başarısız:", err);
+  }
+  return result;
 }
 
 /** Sipariş kalemini siler ve düşülen stoğu geri ekler. */
@@ -252,10 +274,13 @@ export async function removeOrderItem(businessId: string, itemId: string) {
 export async function recordPayment(params: {
   businessId: string;
   orderId: string;
-  method: "CASH" | "CARD";
+  method: PaymentMethodValue;
+  /** Yemek kartı markası / diğer ödeme açıklaması (raporlarda dağılım için) */
+  methodDetail?: string | null;
   itemPayments: { itemId: string; quantity: number }[];
 }) {
   const { businessId, orderId, method, itemPayments } = params;
+  const methodDetail = params.methodDetail?.trim().slice(0, 40) || null;
   const loyaltyEnabled = await isFeatureEnabled(businessId, "loyalty_points");
 
   return prisma.$transaction(async (tx) => {
@@ -291,7 +316,7 @@ export async function recordPayment(params: {
     }
 
     await tx.payment.create({
-      data: { businessId, orderId, method, amountKurus },
+      data: { businessId, orderId, method, methodDetail, amountKurus },
     });
 
     if (allPaid) {
@@ -299,6 +324,16 @@ export async function recordPayment(params: {
         where: { id: orderId },
         data: { status: "CLOSED", closedAt: new Date() },
       });
+
+      // e-Arşiv/e-Adisyon: entegratör seçiliyse fatura kuyruğuna kayıt aç (kapalıysa hiçbir şey yapılmaz)
+      const biz = await tx.business.findUnique({ where: { id: businessId }, select: { invoiceProvider: true } });
+      if (biz && biz.invoiceProvider !== "none") {
+        await tx.invoiceRecord.upsert({
+          where: { orderId },
+          create: { businessId, orderId, provider: biz.invoiceProvider },
+          update: {},
+        });
+      }
 
       if (loyaltyEnabled && order.customerPhone) {
         const gross = items.reduce((s, i) => s + i.unitKurus * i.quantity, 0);

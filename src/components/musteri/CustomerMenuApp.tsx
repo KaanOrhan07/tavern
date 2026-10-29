@@ -14,6 +14,7 @@ import {
   readStoredLocale,
 } from "@/components/musteri/LanguageSelector";
 import type { PublicMenuCategory, PublicMenuProduct } from "@/lib/public-menu-data";
+import { AllergenNote } from "@/components/musteri/ProductNutritionBadges";
 
 export function CustomerMenuApp({
   slug,
@@ -31,6 +32,7 @@ export function CustomerMenuApp({
   onOrderSubmitted,
   enabledLocales,
   defaultLocale = "TR",
+  allergenNote = null,
 }: {
   slug: string;
   businessName: string;
@@ -47,6 +49,8 @@ export function CustomerMenuApp({
   onOrderSubmitted?: () => void;
   enabledLocales?: Locale[];
   defaultLocale?: Locale;
+  /** İşletmenin özel alerjen notu (null → varsayılan metin) */
+  allergenNote?: string | null;
 }) {
   const orderToken = canOrder === false ? null : qrToken;
   const [welcome, setWelcome] = useState(startOnWelcome);
@@ -127,6 +131,7 @@ export function CustomerMenuApp({
         />
       )}
       {suggestionEnabled && <SuggestionWidget slug={slug} />}
+      <AllergenNote note={allergenNote} locale={locale} />
 
       {menuCategories.length === 0 ? (
         <p className="py-12 text-center text-sm text-cream-dim">Menü henüz hazırlanıyor.</p>
@@ -140,6 +145,7 @@ export function CustomerMenuApp({
           loyaltyEnabled={loyaltyEnabled}
           initialCategoryId={initialCategoryId}
           onOrderSubmitted={onOrderSubmitted}
+          locale={locale}
         />
       )}
     </div>

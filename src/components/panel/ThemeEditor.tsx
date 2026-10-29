@@ -33,6 +33,69 @@ const COLOR_FIELDS: { key: keyof ThemeState; label: string }[] = [
   { key: "borderColor", label: "Kenarlık" },
 ];
 
+// Öne çıkan tarzların kısa açıklaması (önizleme kartlarında gösterilir)
+const PRESET_NOTES: Record<string, string> = {
+  glassmorphism: "Buzlu cam, saydam katmanlar",
+  minimalism: "Sade, bol boşluk, ince çizgi",
+  y2k: "Canlı neon, retro-fütürist",
+  luxury: "Zarif, altın vurgu, premium",
+};
+
+/** Tek bir tarzın renk/köşe/cam ayarlarıyla küçük canlı önizlemesi. */
+function PresetPreview({ p }: { p: ThemePreset }) {
+  const glass = p.cardStyle === "glass";
+  return (
+    <div
+      className="relative overflow-hidden"
+      style={{
+        background: p.backgroundColor,
+        color: p.textColor,
+        borderRadius: Math.max(p.cardRadius, 10),
+        padding: 10,
+        fontFamily: `"${p.bodyFont}", system-ui, sans-serif`,
+      }}
+    >
+      {glass && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-6 -top-8 h-20 w-20 rounded-full blur-2xl"
+          style={{ background: p.primaryColor, opacity: 0.5 }}
+        />
+      )}
+      <div
+        className="relative"
+        style={{
+          background: glass ? `color-mix(in srgb, ${p.surfaceColor} 55%, transparent)` : p.surfaceColor,
+          border: `1px solid ${glass ? `color-mix(in srgb, ${p.textColor} 18%, transparent)` : p.borderColor}`,
+          borderRadius: p.cardRadius,
+          padding: 10,
+          backdropFilter: glass ? "blur(6px)" : undefined,
+          WebkitBackdropFilter: glass ? "blur(6px)" : undefined,
+        }}
+      >
+        <p className="text-[10px]" style={{ color: p.mutedTextColor }}>
+          Kategori
+        </p>
+        <p
+          className="mt-0.5 text-sm font-semibold leading-tight"
+          style={{ color: p.primaryColor, fontFamily: `"${p.headingFont}", Georgia, serif` }}
+        >
+          Örnek Hizmet
+        </p>
+        <p className="mt-0.5 text-[11px]" style={{ color: p.mutedTextColor }}>
+          ₺250
+        </p>
+      </div>
+      <div
+        className="mt-2 py-1.5 text-center text-[11px] font-semibold"
+        style={{ background: p.primaryColor, color: p.secondaryColor, borderRadius: p.buttonRadius }}
+      >
+        Randevu Al
+      </div>
+    </div>
+  );
+}
+
 export function ThemeEditor() {
   const [theme, setTheme] = useState<ThemeState | null>(null);
   const [presets, setPresets] = useState<ThemePreset[]>([]);
@@ -97,12 +160,25 @@ export function ThemeEditor() {
 
   const previewStyle = themeToCssVariables(theme);
 
+  // Önizlemelerde gerçek yazı tiplerini göstermek için preset fontlarını yükle
+  const fontFamilies = [...new Set(presets.flatMap((p) => [p.headingFont, p.bodyFont]))];
+  const fontsHref =
+    fontFamilies.length > 0
+      ? `https://fonts.googleapis.com/css2?${fontFamilies
+          .map((f) => `family=${encodeURIComponent(f).replace(/%20/g, "+")}:wght@400;500;600;700`)
+          .join("&")}&display=swap`
+      : null;
+
   return (
     <div className="space-y-6">
+      {fontsHref && <link rel="stylesheet" href={fontsHref} precedence="default" />}
       <div>
         <h1 className="text-xl font-semibold">Tema</h1>
         <p className="mt-1 text-sm text-cream-dim">
-          QR menü görünümünü preset veya renklerle özelleştirin. Kaydetmeden müşteri menüsü değişmez.
+          Müşteri menüsü ve randevu sayfasının görünümünü hazır tarzlar veya renklerle özelleştirin. Kaydetmeden müşteri tarafı değişmez.
+        </p>
+        <p className="mt-1 text-xs text-cream-dim">
+          Seçtiğiniz tarz yalnızca <span className="text-gold">kendi işletmenizin</span> müşteri sayfalarına uygulanır; başka işletmeleri etkilemez.
         </p>
       </div>
 
@@ -120,31 +196,34 @@ export function ThemeEditor() {
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-4">
           <Card>
-            <p className="mb-3 font-medium">Hazır stiller</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {presets.map((p) => (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => applyPreset(p.key)}
-                  className={`rounded-xl border px-3 py-3 text-start text-sm transition-colors ${
-                    theme.presetKey === p.key
-                      ? "border-gold bg-gold/10"
-                      : "border-ink-line hover:border-gold-dark"
-                  }`}
-                >
-                  <span className="font-medium">{p.name}</span>
-                  <span className="mt-2 flex gap-1">
-                    {[p.primaryColor, p.backgroundColor, p.surfaceColor].map((c) => (
-                      <span
-                        key={c}
-                        className="h-4 w-4 rounded-full border border-ink-line"
-                        style={{ background: c }}
-                      />
-                    ))}
-                  </span>
-                </button>
-              ))}
+            <p className="mb-1 font-medium">Hazır tarzlar</p>
+            <p className="mb-3 text-xs text-cream-dim">Bir tarza dokunun — sağdaki önizleme ve renkler buna göre ayarlanır. Kaydet ile yayınlanır.</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {presets.map((p) => {
+                const selected = theme.presetKey === p.key;
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => applyPreset(p.key)}
+                    aria-pressed={selected}
+                    className={`pressable overflow-hidden rounded-2xl border p-2 text-start transition-colors ${
+                      selected ? "border-gold ring-2 ring-gold" : "border-ink-line hover:border-gold-dark"
+                    }`}
+                  >
+                    <PresetPreview p={p} />
+                    <div className="mt-2 px-0.5">
+                      <p className="flex items-center justify-between text-sm font-medium">
+                        {p.name}
+                        {selected && <span className="text-xs text-gold">✓ Seçili</span>}
+                      </p>
+                      {PRESET_NOTES[p.key] && (
+                        <p className="text-[11px] text-cream-dim">{PRESET_NOTES[p.key]}</p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </Card>
 
@@ -238,6 +317,7 @@ export function ThemeEditor() {
               ...previewStyle,
               background: "var(--tv-bg)",
               color: "var(--tv-text)",
+              fontFamily: `"${theme.bodyFont}", system-ui, sans-serif`,
             }}
           >
             <div
@@ -251,7 +331,10 @@ export function ThemeEditor() {
               <p className="text-xs" style={{ color: "var(--tv-muted)" }}>
                 Menü
               </p>
-              <p className="mt-1 font-semibold" style={{ color: "var(--tv-primary)" }}>
+              <p
+                className="mt-1 font-semibold"
+                style={{ color: "var(--tv-primary)", fontFamily: `"${theme.headingFont}", Georgia, serif` }}
+              >
                 Örnek Kategori
               </p>
               <p className="mt-2 text-sm">Cheeseburger</p>

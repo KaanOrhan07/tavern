@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
 import { isBarberBusiness } from "@/lib/business-modules";
 import { parseTlToKurus } from "@/lib/utils";
+import { uploadBookingImage } from "@/lib/storage";
 
 const recipeSchema = z.array(
   z.object({ ingredientId: z.string().min(1), amount: z.number().positive() })
@@ -62,12 +63,28 @@ export async function POST(request: Request) {
   const recipeError = await validateRecipeIngredients(ctx.business.id, recipe.data);
   if (recipeError) return NextResponse.json({ error: recipeError }, { status: 400 });
 
+  const descriptionRaw = String(form.get("description") ?? "").trim();
+  let imageUrl: string | undefined;
+  const image = form.get("image");
+  if (image instanceof File && image.size > 0) {
+    try {
+      imageUrl = await uploadBookingImage(ctx.business.id, image, "service");
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Görsel yüklenemedi" },
+        { status: 400 }
+      );
+    }
+  }
+
   const service = await prisma.service.create({
     data: {
       businessId: ctx.business.id,
       name,
       durationMinutes,
       priceKurus,
+      description: descriptionRaw || null,
+      imageUrl,
       recipeItems: recipe.data.length
         ? { create: recipe.data }
         : undefined,

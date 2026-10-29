@@ -46,6 +46,7 @@ export default async function BusinessLandingPage({
       dailyProduct={menuData.dailyProduct}
       suggestionEnabled={menuData.suggestionEnabled}
       loyaltyEnabled={menuData.loyaltyEnabled}
+      allergenNote={menuData.allergenNote}
       startOnWelcome
       defaultLocale={localeSettings?.defaultLocale ?? "TR"}
       enabledLocales={localeSettings?.enabledLocales ?? ["TR", "EN"]}

@@ -67,18 +67,24 @@ export async function buildDailyReportPdf(data: DailyReportData): Promise<Uint8A
   const boxes = [
     { label: "Toplam Ciro", value: tl(data.totalKurus) },
     { label: "Nakit", value: tl(data.cashKurus) },
-    { label: "Kart", value: tl(data.cardKurus) },
+    { label: "Kredi/Banka Kartı", value: tl(data.cardKurus) },
+    { label: "Yemek Kartı", value: tl(data.mealCardKurus) },
+    { label: "Diğer", value: tl(data.otherKurus) },
     { label: "Sipariş / Ödeme", value: `${data.orderCount} / ${data.paymentCount}` },
   ];
   const gap = 8;
-  const boxW = (PAGE_W - MARGIN * 2 - gap * 3) / 4;
+  const perRow = 3;
+  const boxW = (PAGE_W - MARGIN * 2 - gap * (perRow - 1)) / perRow;
   boxes.forEach((b, i) => {
-    const x = MARGIN + i * (boxW + gap);
-    page.drawRectangle({ x, y: y - 44, width: boxW, height: 50, borderColor: LINE, borderWidth: 1 });
-    page.drawText(b.label, { x: x + 8, y: y - 8, size: 8, font, color: DIM });
-    page.drawText(fit(b.value, bold, 12, boxW - 16), { x: x + 8, y: y - 28, size: 12, font: bold, color: INK });
+    const col = i % perRow;
+    const row = Math.floor(i / perRow);
+    const x = MARGIN + col * (boxW + gap);
+    const top = y - row * 58;
+    page.drawRectangle({ x, y: top - 44, width: boxW, height: 50, borderColor: LINE, borderWidth: 1 });
+    page.drawText(b.label, { x: x + 8, y: top - 8, size: 8, font, color: DIM });
+    page.drawText(fit(b.value, bold, 12, boxW - 16), { x: x + 8, y: top - 28, size: 12, font: bold, color: INK });
   });
-  y -= 70;
+  y -= 58 * Math.ceil(boxes.length / perRow) + 12;
 
   // --- Tablo yardımcısı ---
   const section = (
@@ -136,6 +142,18 @@ export async function buildDailyReportPdf(data: DailyReportData): Promise<Uint8A
     data.products.map((p) => [p.name, String(p.quantity), tl(p.revenueKurus)]),
     "Bugün satış yok"
   );
+
+  if (data.mealCardByBrand.length > 0) {
+    section(
+      "Yemek Kartı Dağılımı",
+      [
+        { header: "Marka", width: 0.6 },
+        { header: "Tutar", width: 0.4, align: "right" },
+      ],
+      data.mealCardByBrand.map((m) => [m.brand, tl(m.amountKurus)]),
+      ""
+    );
+  }
 
   section(
     "Personel Bazlı Sipariş Sayısı",

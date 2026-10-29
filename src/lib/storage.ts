@@ -59,6 +59,30 @@ export async function uploadProductImage(
   return mediaProxyUrl(path);
 }
 
+/**
+ * 3.1.0: Hizmet, personel avatarı ve randevu galerisi görseli yükler.
+ * Ürün görseliyle aynı boyut/sıkıştırma (max 800px, webp), ayrı klasör.
+ */
+export async function uploadBookingImage(
+  businessId: string,
+  file: File,
+  kind: "service" | "staff" | "gallery"
+): Promise<string> {
+  const compressed = await compressImage(file, 800, 800, 80);
+  const path = `${businessId}/booking/${kind}-${crypto.randomUUID()}.webp`;
+  const supabase = supabaseAdmin();
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, compressed, {
+      contentType: "image/webp",
+      cacheControl: "31536000",
+      upsert: false,
+    });
+  if (error) throw new Error(`Görsel yüklenemedi: ${error.message}`);
+
+  return mediaProxyUrl(path);
+}
+
 /** İşletme logo veya banner görseli yükler. */
 export async function uploadBusinessImage(
   businessId: string,

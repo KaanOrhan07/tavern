@@ -1,7 +1,9 @@
+import { broadcastBusiness } from "@/lib/realtime";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePanel, isGuardError } from "@/lib/guard";
 import { recordPayment } from "@/lib/orders";
+import { PAYMENT_METHODS } from "@/lib/payment-methods";
 import {
   beginIdempotent,
   completeIdempotent,
@@ -11,7 +13,8 @@ import { writeAuditLog } from "@/lib/audit";
 import { clientIp } from "@/lib/rate-limit";
 
 const schema = z.object({
-  method: z.enum(["CASH", "CARD"]),
+  method: z.enum(PAYMENT_METHODS),
+  methodDetail: z.string().trim().max(40).optional(),
   itemPayments: z
     .array(z.object({ itemId: z.string().min(1), quantity: z.number().int().min(1) }))
     .min(1),
@@ -53,9 +56,11 @@ export async function POST(
       businessId: ctx.business.id,
       orderId: id,
       method: body.data.method,
+      methodDetail: body.data.methodDetail,
       itemPayments: body.data.itemPayments,
     });
     const payload = { ok: true, ...result };
+    broadcastBusiness(ctx.business.id, "orders", "tables", "kitchen");
     await writeAuditLog({
       session: ctx.session,
       action: "PAYMENT",

@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { getPanelSessionFor } from "@/lib/auth";
-import { requireRestaurantModule } from "@/lib/panel-module-guard";
+import { isBarberBusiness } from "@/lib/business-modules";
 import { getFeatureMap } from "@/lib/features";
 import { ReportsView } from "@/components/panel/ReportsView";
+import { BarberReportsView } from "@/components/panel/BarberReportsView";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +17,16 @@ export default async function ReportsPage({
   const session = await getPanelSessionFor(isletmeSlug);
   if (!session) redirect(`/panel/${isletmeSlug}/giris`);
   if (session.role !== "owner") redirect(`/panel/${isletmeSlug}/masalar`);
-  await requireRestaurantModule(isletmeSlug, session.businessId);
+
+  const business = await prisma.business.findUnique({
+    where: { id: session.businessId },
+    include: { type: true },
+  });
+  if (!business) redirect(`/panel/${isletmeSlug}/giris`);
+
+  if (isBarberBusiness(business.type.key)) {
+    return <BarberReportsView />;
+  }
 
   const features = await getFeatureMap(session.businessId);
 

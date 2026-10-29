@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, EmptyState, Input, Label } from "@/components/ui";
+import { toDisplayImageUrl } from "@/lib/storage-url";
 
-type Staff = { id: string; name: string; hasPin: boolean; active: boolean };
+type Staff = { id: string; name: string; hasPin: boolean; active: boolean; imageUrl?: string | null };
 
 export function StaffManager({ staff }: { staff: Staff[] }) {
   const router = useRouter();
@@ -12,6 +13,22 @@ export function StaffManager({ staff }: { staff: Staff[] }) {
   const [form, setForm] = useState({ name: "", pin: "" });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPin, setEditPin] = useState("");
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+
+  async function uploadAvatar(id: string, file: File) {
+    setUploadingId(id);
+    setError(null);
+    const fd = new FormData();
+    fd.set("avatar", file);
+    const res = await fetch(`/api/panel/staff/${id}`, { method: "PATCH", body: fd });
+    if (res.ok) {
+      router.refresh();
+    } else {
+      const data = await res.json().catch(() => null);
+      setError(data?.error ?? "Fotoğraf yüklenemedi");
+    }
+    setUploadingId(null);
+  }
 
   async function addStaff(e: React.FormEvent) {
     e.preventDefault();
@@ -125,6 +142,31 @@ export function StaffManager({ staff }: { staff: Staff[] }) {
           <div className="divide-y divide-ink-line">
             {staff.map((member) => (
               <div key={member.id} className="flex flex-wrap items-center gap-3 p-4">
+                <label
+                  className="relative h-12 w-12 shrink-0 cursor-pointer overflow-hidden rounded-full ring-1 ring-ink-line"
+                  title="Fotoğraf değiştir"
+                >
+                  {member.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={toDisplayImageUrl(member.imageUrl)} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center bg-gold/15 text-base font-semibold text-gold">
+                      {member.name.slice(0, 1).toLocaleUpperCase("tr")}
+                    </span>
+                  )}
+                  {uploadingId === member.id && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-ink/60 text-[10px] text-cream">…</span>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadAvatar(member.id, f);
+                    }}
+                  />
+                </label>
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{member.name}</p>
                   {editingId === member.id ? (

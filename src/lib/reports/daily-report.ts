@@ -9,6 +9,10 @@ export type DailyReportData = {
   totalKurus: number;
   cashKurus: number;
   cardKurus: number;
+  mealCardKurus: number;
+  otherKurus: number;
+  /** Yemek kartı markasına göre tahsilat */
+  mealCardByBrand: { brand: string; amountKurus: number }[];
   paymentCount: number;
   orderCount: number;
   products: { name: string; quantity: number; revenueKurus: number }[];
@@ -24,7 +28,7 @@ export async function getDailyReportData(businessId: string): Promise<DailyRepor
     prisma.business.findUnique({ where: { id: businessId }, select: { name: true } }),
     prisma.payment.findMany({
       where: { businessId, createdAt: { gte: start, lt: end } },
-      select: { method: true, amountKurus: true },
+      select: { method: true, methodDetail: true, amountKurus: true },
     }),
     prisma.order.findMany({
       where: { businessId, createdAt: { gte: start, lt: end }, status: { not: "CANCELLED" } },
@@ -51,9 +55,17 @@ export async function getDailyReportData(businessId: string): Promise<DailyRepor
 
   let cashKurus = 0;
   let cardKurus = 0;
+  let mealCardKurus = 0;
+  let otherKurus = 0;
+  const mealByBrand = new Map<string, number>();
   for (const p of payments) {
     if (p.method === "CASH") cashKurus += p.amountKurus;
-    else cardKurus += p.amountKurus;
+    else if (p.method === "CARD") cardKurus += p.amountKurus;
+    else if (p.method === "MEAL_CARD") {
+      mealCardKurus += p.amountKurus;
+      const brand = p.methodDetail ?? "Belirtilmemiş";
+      mealByBrand.set(brand, (mealByBrand.get(brand) ?? 0) + p.amountKurus);
+    } else otherKurus += p.amountKurus;
   }
 
   const products = new Map<string, { quantity: number; revenueKurus: number }>();
@@ -90,9 +102,14 @@ export async function getDailyReportData(businessId: string): Promise<DailyRepor
     businessName: business?.name ?? "İşletme",
     dateLabel,
     generatedAt: new Date(),
-    totalKurus: cashKurus + cardKurus,
+    totalKurus: cashKurus + cardKurus + mealCardKurus + otherKurus,
     cashKurus,
     cardKurus,
+    mealCardKurus,
+    otherKurus,
+    mealCardByBrand: [...mealByBrand]
+      .map(([brand, amountKurus]) => ({ brand, amountKurus }))
+      .sort((a, b) => b.amountKurus - a.amountKurus),
     paymentCount: payments.length,
     orderCount: orders.length,
     products: [...products].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.quantity - a.quantity),

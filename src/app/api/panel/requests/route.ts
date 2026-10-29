@@ -1,3 +1,4 @@
+import { broadcastBusiness } from "@/lib/realtime";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -48,5 +49,6 @@ export async function POST(request: Request) {
       },
     }),
   ]);
+  broadcastBusiness(ctx.business.id, "notifications");
   return NextResponse.json({ ok: true, request: staffRequest });
 }

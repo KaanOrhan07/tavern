@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirePanel, isGuardError } from "@/lib/guard";
 import { parseTlToKurus } from "@/lib/utils";
+import { uploadBookingImage } from "@/lib/storage";
 
 const recipeSchema = z.array(
   z.object({ ingredientId: z.string().min(1), amount: z.number().positive() })
@@ -45,6 +46,23 @@ export async function PATCH(
   }
   if (form.has("active")) {
     data.active = String(form.get("active")) === "true";
+  }
+  if (form.has("description")) {
+    const d = String(form.get("description")).trim();
+    data.description = d || null;
+  }
+  const image = form.get("image");
+  if (image instanceof File && image.size > 0) {
+    try {
+      data.imageUrl = await uploadBookingImage(ctx.business.id, image, "service");
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Görsel yüklenemedi" },
+        { status: 400 }
+      );
+    }
+  } else if (String(form.get("removeImage")) === "true") {
+    data.imageUrl = null;
   }
 
   if (form.has("recipe")) {

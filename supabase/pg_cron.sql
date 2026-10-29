@@ -42,3 +42,13 @@ select cron.schedule(
 );
 
 -- Kontrol: select * from cron.job;   |   Çalışma geçmişi: select * from cron.job_run_details order by start_time desc limit 20;
+
+-- (2.3.0) e-Arşiv kuyruğu: entegratör bağlandığında etkinleştirin (yorum satırını kaldırın)
+-- select cron.schedule('tavern-invoices', '*/10 * * * *', $$
+--   select net.http_post(
+--     url := '<APP_URL>/api/jobs/invoices',
+--     headers := jsonb_build_object('Authorization', 'Bearer <CRON_SECRET>', 'Content-Type', 'application/json'),
+--     body := '{}'::jsonb,
+--     timeout_milliseconds := 30000
+--   );
+-- $$);

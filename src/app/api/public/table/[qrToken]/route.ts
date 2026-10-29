@@ -10,7 +10,7 @@ export async function GET(
   const table = await prisma.table.findUnique({
     where: { qrToken },
     include: {
-      business: { select: { slug: true, name: true, active: true, orderMode: true } },
+      business: { select: { slug: true, name: true, active: true, orderMode: true, googleReviewUrl: true } },
       orders: {
         where: { status: "OPEN" },
         include: { items: { orderBy: { createdAt: "asc" } } },
@@ -29,6 +29,8 @@ export async function GET(
       orderMode: table.business.orderMode,
     },
     table: { name: table.name },
+    // Ödeme sonrası Google yorum kartı için (URL'nin kendisi /{slug}/yorum üzerinden yönlendirilir)
+    reviewEnabled: Boolean(table.business.googleReviewUrl),
     order: open
       ? {
           items: open.items.map((i) => ({

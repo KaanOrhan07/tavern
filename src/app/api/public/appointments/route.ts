@@ -1,3 +1,4 @@
+import { broadcastBusiness } from "@/lib/realtime";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -143,6 +144,8 @@ export async function POST(request: Request) {
       message: `Yeni talep — ${staff.name}: ${service.name} — ${appointment.customerName} (${appointment.startAt.toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })})`,
     },
   });
+
+  broadcastBusiness(business.id, "appointments", "notifications");
 
   return NextResponse.json({
     ok: true,

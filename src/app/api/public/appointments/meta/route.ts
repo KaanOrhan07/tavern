@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
   const business = await prisma.business.findUnique({
     where: { slug },
-    include: { type: true, barberSettings: true },
+    include: { type: true, barberSettings: true, businessInfo: true },
   });
   if (!business || !business.active || !isBarberBusiness(business.type.key)) {
     return NextResponse.json({ error: "İşletme bulunamadı" }, { status: 404 });
@@ -20,17 +20,30 @@ export async function GET(request: Request) {
     prisma.service.findMany({
       where: { businessId: business.id, active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, durationMinutes: true, priceKurus: true },
+      select: {
+        id: true,
+        name: true,
+        durationMinutes: true,
+        priceKurus: true,
+        imageUrl: true,
+        description: true,
+      },
     }),
     prisma.user.findMany({
       where: { businessId: business.id, role: "STAFF", active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, imageUrl: true },
     }),
   ]);
 
   return NextResponse.json({
     ok: true,
+    business: {
+      name: business.name,
+      logoUrl: business.logoUrl,
+      bannerUrl: business.bannerUrl,
+      gallery: business.businessInfo?.galleryUrls ?? [],
+    },
     settings: business.barberSettings ?? {
       slotMinutes: 30,
       openTime: "09:00",

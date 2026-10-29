@@ -1,19 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Badge, Button, Card, Input, Label } from "@/components/ui";
+import { Badge, Button, Card, Input, Label, Textarea } from "@/components/ui";
 import { APP_VERSION } from "@/lib/version";
+import { qrOrderingEnabled, type OrderModeValue } from "@/lib/order-mode";
 import { MenuExcelCard } from "@/components/panel/MenuExcelCard";
+import { DevicesCard } from "@/components/panel/DevicesCard";
 import { ALL_WORK_DAYS, WEEK_ORDER } from "@/lib/appointments-shared";
 import { CustomerPublicLink } from "@/components/panel/CustomerPublicLink";
+import { BookingGallery } from "@/components/panel/BookingGallery";
 import {
   connectBluetoothPrinter,
   connectUsbPrinter,
   isPrinterConnected,
   isPrinterSupported,
 } from "@/lib/printer";
+
+const foldTr = (v: string) => v.toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
+const SettingsFilter = createContext("");
+
+/** Ayar bölümü: arama süzgecine uymuyorsa gizlenir, boşsa (koşul kapalı) hiç yer kaplamaz */
+function S({ id, title, keywords = "", children }: { id: string; title: string; keywords?: string; children: React.ReactNode }) {
+  const q = useContext(SettingsFilter);
+  const match = !q || foldTr(`${title} ${keywords}`).includes(foldTr(q));
+  return (
+    <div id={`s-${id}`} data-settings-section data-title={title} className={`scroll-mt-24 empty:hidden ${match ? "" : "hidden"}`}>
+      {children}
+    </div>
+  );
+}
 
 export function SettingsView({
   businessName,
@@ -30,7 +48,7 @@ export function SettingsView({
   businessName: string;
   logoUrl: string | null;
   bannerUrl: string | null;
-  orderMode: "WAITER_ONLY" | "CUSTOMER_QR";
+  orderMode: OrderModeValue;
   theme: "LIGHT" | "DARK";
   printerEnabled: boolean;
   loyaltyEnabled: boolean;
@@ -53,6 +71,9 @@ export function SettingsView({
   const [loyaltyDiscount, setLoyaltyDiscount] = useState("10");
   const [savingLoyalty, setSavingLoyalty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
+  const [sections, setSections] = useState<{ id: string; title: string }[]>([]);
+  const rootRef = useRef<HTMLDivElement>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
   const [printerStatus, setPrinterStatus] = useState<"idle" | "connected" | "error">("idle");
   const [printerSupported, setPrinterSupported] = useState(true);
@@ -74,6 +95,9 @@ export function SettingsView({
   const [bizWebsite, setBizWebsite] = useState("");
   const [workDays, setWorkDays] = useState<number[]>(ALL_WORK_DAYS);
   const [bizDescription, setBizDescription] = useState("");
+  const [bizReviewUrl, setBizReviewUrl] = useState("");
+  const [bizAllergenNote, setBizAllergenNote] = useState("");
+  const [reviewClicks, setReviewClicks] = useState(0);
   const [savingBizInfo, setSavingBizInfo] = useState(false);
   const [kitchenClearMinutes, setKitchenClearMinutes] = useState(
     String(kitchenCompletedClearMinutes)
@@ -101,6 +125,11 @@ export function SettingsView({
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data && typeof data.geofenceEnabled === "boolean") setBizGeofence(data.geofenceEnabled);
+        if (data) {
+          setBizReviewUrl(data.googleReviewUrl ?? "");
+          setBizAllergenNote(data.allergenNote ?? "");
+          setReviewClicks(data.reviewClicks ?? 0);
+        }
         if (!data?.info) return;
         setBizAddress(data.info.address ?? "");
         setBizPhone(data.info.phone ?? "");
@@ -115,6 +144,13 @@ export function SettingsView({
         setBizDescription(data.info.description ?? "");
       });
   }, []);
+
+  useEffect(() => {
+    const found = [...(rootRef.current?.querySelectorAll<HTMLElement>("[data-settings-section]") ?? [])]
+      .filter((el) => el.childElementCount > 0)
+      .map((el) => ({ id: el.id.replace(/^s-/, ""), title: el.dataset.title ?? "" }));
+    setSections(found);
+  }, [isBarber, loyaltyEnabled, printerEnabled]);
 
   async function saveBarberSettings(e: React.FormEvent) {
     e.preventDefault();
@@ -163,6 +199,8 @@ export function SettingsView({
         websiteUrl: bizWebsite.trim() || null,
         description: bizDescription || null,
         geofenceEnabled: bizGeofence,
+        googleReviewUrl: bizReviewUrl.trim() || null,
+        allergenNote: bizAllergenNote.trim() || null,
       }),
     });
     const data = await res.json().catch(() => null);
@@ -193,7 +231,7 @@ export function SettingsView({
       });
   }, [loyaltyEnabled]);
 
-  async function saveMode(next: "WAITER_ONLY" | "CUSTOMER_QR") {
+  async function saveMode(next: OrderModeValue) {
     setMode(next);
     setError(null);
     const res = await fetch("/api/panel/settings", {
@@ -335,7 +373,7 @@ export function SettingsView({
   }
 
   const modeOption = (
-    value: "WAITER_ONLY" | "CUSTOMER_QR",
+    value: OrderModeValue,
     title: string,
     description: string
   ) => (
@@ -387,8 +425,31 @@ export function SettingsView({
   );
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Ayarlar</h1>
+    <SettingsFilter.Provider value={filter}>
+    <div className="space-y-6" ref={rootRef}>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Ayarlar</h1>
+          <p className="mt-0.5 text-sm text-cream-dim">Aradığınız ayarı yazın ya da bölüme atlayın</p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-dim" aria-hidden />
+          <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Ayar ara… (ör: yazıcı, logo)" aria-label="Ayar ara" className="pl-9" type="search" />
+        </div>
+      </div>
+      {sections.length > 0 && !filter && (
+        <nav aria-label="Ayar bölümleri" className="hide-scrollbar sticky top-14 z-10 -mx-4 flex gap-1.5 overflow-x-auto border-b border-ink-line bg-ink/90 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:top-[3.25rem]">
+          {sections.map((sec) => (
+            <a
+              key={sec.id}
+              href={`#s-${sec.id}`}
+              className="pressable shrink-0 rounded-full border border-ink-line bg-ink-card px-3 py-1.5 text-xs text-cream-dim hover:border-gold hover:text-cream"
+            >
+              {sec.title}
+            </a>
+          ))}
+        </nav>
+      )}
 
       {error && (
         <p className="rounded-lg border border-danger/40 bg-danger/10 px-4 py-2.5 text-sm text-danger">
@@ -401,6 +462,7 @@ export function SettingsView({
         </p>
       )}
 
+      <S id="profil" title="İşletme Profili" keywords="logo banner isim ad görsel">
       <Card>
         <p className="mb-1 font-medium">İşletme Profili</p>
         <p className="mb-4 text-xs text-cream-dim">
@@ -458,7 +520,9 @@ export function SettingsView({
           </Button>
         </form>
       </Card>
+      </S>
 
+      <S id="fiyat" title="Toplu Fiyat Artışı" keywords="zam fiyat ürün yüzde">
       {!isBarber && (
         <Card>
           <p className="mb-1 font-medium">Toplu Fiyat Artışı</p>
@@ -502,7 +566,9 @@ export function SettingsView({
         </form>
       </Card>
       )}
+      </S>
 
+      <S id="sadakat" title="Sadakat / Puan" keywords="puan indirim müşteri">
       {!isBarber && loyaltyEnabled && (
         <Card>
           <p className="mb-1 font-medium">Sadakat / Puan Sistemi</p>
@@ -548,7 +614,9 @@ export function SettingsView({
           </form>
         </Card>
       )}
+      </S>
 
+      <S id="randevu-link" title="Müşteri Randevu Linki" keywords="qr link paylaş instagram whatsapp">
       {isBarber && (
         <CustomerPublicLink
           slug={businessSlug}
@@ -557,7 +625,9 @@ export function SettingsView({
           description="Bu linki veya QR kodu vitrin, Instagram veya WhatsApp'ta paylaşın. Müşteriler hesap açmadan randevu alır."
         />
       )}
+      </S>
 
+      <S id="randevu" title="Randevu Ayarları" keywords="çalışma saatleri slot süre">
       {isBarber && (
         <Card>
           <p className="mb-1 font-medium">Randevu Ayarları</p>
@@ -647,7 +717,18 @@ export function SettingsView({
           </form>
         </Card>
       )}
+      </S>
 
+      <S id="randevu-galeri" title="Randevu Sayfası Galerisi" keywords="randevu fotoğraf galeri vitrin görsel resim">
+      {isBarber && (
+        <Card>
+          <p className="mb-1 font-medium">Randevu Sayfası Galerisi</p>
+          <BookingGallery />
+        </Card>
+      )}
+      </S>
+
+      <S id="bilgi" title="İşletme Bilgisi" keywords="adres harita yol tarifi telefon sosyal medya instagram konum">
       <Card>
         <p className="mb-1 font-medium">İşletme Bilgisi / Yol Tarifi</p>
         <p className="mb-4 text-xs text-cream-dim">
@@ -684,8 +765,8 @@ export function SettingsView({
             <label className="flex items-start gap-2 text-sm sm:col-span-2">
               <input
                 type="checkbox"
-                checked={bizGeofence || mode === "CUSTOMER_QR"}
-                disabled={mode === "CUSTOMER_QR"}
+                checked={bizGeofence || qrOrderingEnabled(mode)}
+                disabled={qrOrderingEnabled(mode)}
                 onChange={(e) => setBizGeofence(e.target.checked)}
                 className="mt-0.5 h-4 w-4 accent-gold"
               />
@@ -693,9 +774,9 @@ export function SettingsView({
                 Menüye yalnızca işletme içinden (100 m) erişilsin
                 <span className="block text-[11px] text-cream-dim">
                   Yalnızca Google Maps linki tanımlıysa çalışır. Konum izni vermeyen veya uzaktaki kişiler menüyü göremez.
-                  {mode === "CUSTOMER_QR" && " Müşteri QR siparişi açıkken bu kısıt zorunludur (evden sipariş verilemez)."}
+                  {qrOrderingEnabled(mode) && " Müşteri QR siparişi açıkken bu kısıt zorunludur (evden sipariş verilemez)."}
                 </span>
-                {mode === "CUSTOMER_QR" && !bizHasCoords && (
+                {qrOrderingEnabled(mode) && !bizHasCoords && (
                   <span className="mt-1 block text-[11px] text-danger">
                     ⚠ Google Maps linki kaydedilmediği için müşteri QR siparişi şu an KAPALI. Yukarıya linki yapıştırıp kaydedin.
                   </span>
@@ -731,14 +812,59 @@ export function SettingsView({
             <Label>Kısa tanıtım</Label>
             <Input value={bizDescription} onChange={(e) => setBizDescription(e.target.value)} />
           </div>
+          {!isBarber && (
+            <>
+              <div className="sm:col-span-2">
+                <Label>Google Yorum Linki</Label>
+                <Input
+                  value={bizReviewUrl}
+                  onChange={(e) => setBizReviewUrl(e.target.value)}
+                  placeholder="https://g.page/r/.../review"
+                />
+                <p className="mt-1 text-[11px] text-cream-dim">
+                  Müşteri hesabı ödediğinde &quot;Google&apos;da değerlendir&quot; kartı çıkar. Aynı bağlantı NFC kartı / masa QR&apos;ı için
+                  kalıcıdır: <span className="font-mono">/{businessSlug}/yorum</span> — Google linkini sonradan değiştirseniz de basılı kartlar bozulmaz.
+                  {reviewClicks > 0 && <> Şu ana kadar {reviewClicks} tıklama.</>}
+                </p>
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Menü uyarı notu (alerjen / içerik)</Label>
+                <Textarea
+                  rows={2}
+                  value={bizAllergenNote}
+                  onChange={(e) => setBizAllergenNote(e.target.value)}
+                  placeholder="Boş bırakırsanız standart uyarı gösterilir: Alerjiniz varsa sipariş öncesi personele bildirin."
+                />
+              </div>
+            </>
+          )}
           <Button type="submit" disabled={savingBizInfo} className="sm:col-span-2">
             {savingBizInfo ? "Kaydediliyor..." : "İşletme Bilgisini Kaydet"}
           </Button>
         </form>
       </Card>
+      </S>
 
+      <S id="excel" title="Menü Excel" keywords="içe aktar dışa aktar toplu menü">
       {!isBarber && <MenuExcelCard />}
+      </S>
 
+      <S id="cihazlar" title="Cihazlar" keywords="yazıcı tablet cihaz token mutfak">
+      <DevicesCard isBarber={isBarber} />
+      </S>
+
+      <S id="yorum" title="Google Yorum" keywords="nfc yorum link">
+      {!isBarber && bizReviewUrl.trim() && (
+        <CustomerPublicLink
+          slug={businessSlug}
+          path="/yorum"
+          title="Google Yorum Bağlantısı (NFC kart / masa QR)"
+          description="Bu kalıcı bağlantıyı NFC karta yazın veya QR olarak masalara koyun; müşteri doğrudan Google yorum sayfanıza gider."
+        />
+      )}
+      </S>
+
+      <S id="rapor" title="Günlük Rapor" keywords="pdf ciro">
       {!isBarber && (
         <Card>
           <p className="mb-1 font-medium">Günlük Rapor (PDF)</p>
@@ -754,11 +880,13 @@ export function SettingsView({
           </a>
         </Card>
       )}
+      </S>
 
+      <S id="mod" title="Sipariş Modu" keywords="garson qr sipariş müşteri">
       {!isBarber && (
       <Card>
         <p className="mb-1 font-medium">Sipariş Modu</p>
-        <p className="mb-4 text-xs text-cream-dim">İki mod aynı anda aktif olamaz.</p>
+        <p className="mb-4 text-xs text-cream-dim">Masaların siparişi kim girer? Garson + müşteri aynı anda sipariş verebilir (aynı masada tek adisyon).</p>
         <div className="space-y-3">
           {modeOption(
             "WAITER_ONLY",
@@ -767,13 +895,20 @@ export function SettingsView({
           )}
           {modeOption(
             "CUSTOMER_QR",
-            "Müşteri QR Aktif",
-            "Müşteri masadaki QR ile kendi siparişini verir."
+            "Sadece Müşteri QR",
+            "Müşteri masadaki QR ile kendi siparişini verir; garson sipariş girmez."
+          )}
+          {modeOption(
+            "BOTH",
+            "Garson + Müşteri QR",
+            "Hem garson hem müşteri sipariş verebilir. Müşteri QR siparişi için Google Maps konumu zorunludur."
           )}
         </div>
       </Card>
       )}
+      </S>
 
+      <S id="tema" title="Menü Teması" keywords="açık koyu renk görünüm">
       <Card>
         <p className="mb-1 font-medium">{isBarber ? "Müşteri Sayfa Teması" : "Müşteri Menü Teması"}</p>
         <p className="mb-4 text-xs text-cream-dim">
@@ -786,7 +921,9 @@ export function SettingsView({
           {themeOption("LIGHT", "Açık Tema", "Krem/beyaz zemin, koyu metin.")}
         </div>
       </Card>
+      </S>
 
+      <S id="adisyon" title="Adisyon Ekranı" keywords="mutfak ekran süre temizle">
       {!isBarber && (
         <Card>
           <p className="mb-1 font-medium">Adisyon Ekranı</p>
@@ -840,7 +977,9 @@ export function SettingsView({
           </form>
         </Card>
       )}
+      </S>
 
+      <S id="yazici" title="Mutfak Yazıcısı" keywords="bluetooth usb fiş">
       {printerEnabled && !isBarber && (
         <Card>
           <div className="mb-4 flex items-center justify-between">
@@ -865,7 +1004,9 @@ export function SettingsView({
           )}
         </Card>
       )}
+      </S>
 
+      <S id="sistem" title="Sistem" keywords="sürüm">
       <Card>
         <p className="mb-1 font-medium">Sistem</p>
         <div className="mt-2 space-y-1 text-sm text-cream-dim">
@@ -875,6 +1016,8 @@ export function SettingsView({
           <p className="text-xs">Created by Digio Medya ve Yazılım</p>
         </div>
       </Card>
+      </S>
     </div>
+    </SettingsFilter.Provider>
   );
 }

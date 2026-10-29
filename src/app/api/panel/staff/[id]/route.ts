@@ -5,6 +5,7 @@ import { requirePanel, isGuardError } from "@/lib/guard";
 import { hashPin, pinFingerprint, validatePinFormat } from "@/lib/pin";
 import { writeAuditLog } from "@/lib/audit";
 import { clientIp } from "@/lib/rate-limit";
+import { uploadBookingImage } from "@/lib/storage";
 
 const patchSchema = z.object({
   name: z.string().min(2).max(60).optional(),
@@ -20,6 +21,32 @@ export async function PATCH(
   if (isGuardError(ctx)) return ctx;
 
   const { id } = await params;
+
+  // 3.1.0: Avatar yüklemesi multipart/form-data ile gelir (ayrı yol).
+  if (request.headers.get("content-type")?.includes("multipart/form-data")) {
+    const staff = await prisma.user.findFirst({
+      where: { id, businessId: ctx.business.id, role: "STAFF" },
+    });
+    if (!staff) return NextResponse.json({ error: "Personel bulunamadı" }, { status: 404 });
+    const form = await request.formData().catch(() => null);
+    if (!form) return NextResponse.json({ error: "Geçersiz istek" }, { status: 400 });
+    const image = form.get("avatar");
+    if (image instanceof File && image.size > 0) {
+      try {
+        const imageUrl = await uploadBookingImage(ctx.business.id, image, "staff");
+        await prisma.user.update({ where: { id }, data: { imageUrl } });
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "Görsel yüklenemedi" },
+          { status: 400 }
+        );
+      }
+    } else if (String(form.get("removeAvatar")) === "true") {
+      await prisma.user.update({ where: { id }, data: { imageUrl: null } });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const body = patchSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
     return NextResponse.json({ error: "Geçersiz istek" }, { status: 400 });

@@ -54,7 +54,7 @@ export function LoyaltyPointsPanel({
         className="absolute inset-0 bg-ink/70 backdrop-blur-sm cursor-pointer"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-2xl rounded-t-2xl border border-ink-line bg-ink-card p-5 [animation:sheet-up_0.28s_ease-out]">
+      <div className="relative z-10 w-full max-w-2xl rounded-t-3xl border border-ink-line bg-ink-card p-5 anim-sheet-up">
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-ink-line" />
         <h2 className="text-lg font-semibold">Puanlarım</h2>
         <p className="mt-1 text-sm text-cream-dim">

@@ -19,14 +19,9 @@ export default async function PublicBookingPage({
     notFound();
   }
 
+  // Kapak ve yapışkan çubuk ekranın kenarına dayansın diye layout'un yan boşluğunu kır
   return (
-    <div className="space-y-6 pb-16">
-      <div>
-        <h1 className="text-lg font-semibold">Randevu Al</h1>
-        <p className="mt-1 text-sm text-cream-dim">
-          Hizmet, personel ve saat seçerek randevu oluştur. Hesap zorunlu değil; açarsan geçmişin ve sık gittiğin yerler kaydolur.
-        </p>
-      </div>
+    <div className="-mx-4 -mt-3">
       <BookingWidget slug={isletmeSlug} />
     </div>
   );

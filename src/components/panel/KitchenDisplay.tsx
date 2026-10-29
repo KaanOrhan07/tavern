@@ -163,7 +163,7 @@ export function KitchenDisplay() {
     }
   }, []);
 
-  useVisibleInterval(load, POLL_MS);
+  useVisibleInterval(load, POLL_MS, ["orders", "kitchen"]);
 
   async function setItemStatus(itemId: string, status: "PREPARING" | "READY") {
     setMarkingId(itemId);

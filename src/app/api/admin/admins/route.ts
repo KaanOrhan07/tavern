@@ -20,6 +20,7 @@ export async function GET() {
       lastLoginAt: true,
       createdAt: true,
       createdByLabel: true,
+      twoFactorEnabled: true,
       role: true,
     },
   });

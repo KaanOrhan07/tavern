@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { defaultCustomerPath } from "@/lib/business-modules";
 import { toDisplayImageUrl } from "@/lib/storage-url";
 import { getOrCreateThemeSettings } from "@/lib/themes/service";
-import { themeToCssVariables } from "@/lib/themes/css-vars";
+import { themeFontsHref, themeToCssVariables } from "@/lib/themes/css-vars";
 
 export default async function CustomerLayout({
   children,
@@ -32,15 +32,18 @@ export default async function CustomerLayout({
   const homeHref = defaultCustomerPath(isletmeSlug, business.type.key);
   const logoUrl = business.logoUrl ? toDisplayImageUrl(business.logoUrl) : null;
   const themeSettings = await getOrCreateThemeSettings(business.id);
-  const cssVars = themeToCssVariables(themeSettings);
+  const cssVars = themeToCssVariables(themeSettings, { bridge: themeSettings.themeVersion > 1 });
+
+  const customized = themeSettings.themeVersion > 1;
 
   return (
     <div
       data-tavern-theme={business.theme.toLowerCase()}
-      className="tavern-theme flex min-h-dvh flex-col overflow-x-hidden bg-ink text-cream"
+      className="tavern-theme flex min-h-dvh flex-col overflow-x-clip bg-ink text-cream [font-family:var(--tv-body-font,inherit)]"
       style={cssVars as CSSProperties}
     >
-      <header className="sticky top-0 z-20 border-b border-ink-line bg-ink/95 backdrop-blur supports-[backdrop-filter]:bg-ink/90">
+      {customized && <link rel="stylesheet" href={themeFontsHref(themeSettings)} precedence="default" />}
+      <header className="glass sticky top-0 z-20 border-b border-ink-line">
         <div className="mx-auto flex h-14 max-w-2xl items-center gap-3 px-4">
           {logoUrl ? (
             <Image
@@ -53,11 +56,11 @@ export default async function CustomerLayout({
             />
           ) : null}
           <Link href={homeHref} className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-medium">{business.name}</p>
+            <p className="truncate text-base font-semibold tracking-tight [font-family:var(--tv-heading-font,inherit)]">{business.name}</p>
           </Link>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-2xl flex-1 overflow-x-hidden px-4 pt-3 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))]">
+      <main className="mx-auto w-full max-w-2xl flex-1 overflow-x-clip px-4 pt-3 pb-[calc(10rem+env(safe-area-inset-bottom,0px))]">
         {children}
       </main>
     </div>

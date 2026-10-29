@@ -1,5 +1,7 @@
 "use client";
 
+import { waiterOrderingEnabled, type OrderModeValue } from "@/lib/order-mode";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, EmptyState } from "@/components/ui";
@@ -9,6 +11,8 @@ import {
   printKitchenTicket,
 } from "@/lib/printer";
 import { useVisibleInterval } from "@/hooks/useVisibleInterval";
+import { queuedFetch } from "@/lib/offline-queue";
+import { MEAL_CARD_BRANDS, OTHER_PAYMENT_HINTS, type PaymentMethodValue } from "@/lib/payment-methods";
 
 type OrderItem = {
   id: string;
@@ -56,7 +60,7 @@ export function TableDetail({
   tableId: string;
   tableName: string;
   qrToken: string;
-  orderMode: "WAITER_ONLY" | "CUSTOMER_QR";
+  orderMode: OrderModeValue;
   isOwner: boolean;
   printerEnabled: boolean;
   categories: MenuCategory[];
@@ -79,6 +83,9 @@ export function TableDetail({
   const [payMode, setPayMode] = useState(false);
   const [paySelection, setPaySelection] = useState<Map<string, number>>(new Map());
   const [paying, setPaying] = useState(false);
+  // Yemek kartı / diğer ödeme: marka veya açıklama seçimi
+  const [payExtra, setPayExtra] = useState<null | "MEAL_CARD" | "OTHER">(null);
+  const [payDetail, setPayDetail] = useState("");
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/panel/tables/${tableId}`);
@@ -91,7 +98,7 @@ export function TableDetail({
     }
   }, [tableId]);
 
-  useVisibleInterval(load, 8_000);
+  useVisibleInterval(load, 8_000, ["orders", "tables"]);
 
   useEffect(() => {
     if (!showQr || qrDataUrl) return;
@@ -147,12 +154,12 @@ export function TableDetail({
       productId,
       quantity,
     }));
-    const res = await fetch("/api/panel/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tableId, items: orderItems }),
+    // Ağ yoksa sipariş yerelde kuyruğa alınır ve bağlantı gelince (Idempotency-Key ile) bir kez gönderilir
+    const { res, queued } = await queuedFetch("/api/panel/orders", {
+      body: { tableId, items: orderItems },
+      label: `${tableName} siparişi`,
     });
-    if (res.ok) {
+    if (res?.ok || queued) {
       // Mutfak fişi (yazıcı bağlıysa)
       if (printerEnabled && isPrinterConnected()) {
         const ticketItems = orderItems.map(({ productId, quantity }) => {
@@ -169,9 +176,10 @@ export function TableDetail({
       }
       setCart(new Map());
       setShowAddSheet(false);
-      load();
+      if (queued) setError(null);
+      else load();
     } else {
-      const data = await res.json().catch(() => null);
+      const data = await res?.json().catch(() => null);
       setError(data?.error ?? "Sipariş eklenemedi");
     }
     setSubmitting(false);
@@ -232,15 +240,17 @@ export function TableDetail({
     setPaySelection(next);
   }
 
-  async function pay(method: "CASH" | "CARD") {
+  async function pay(method: PaymentMethodValue, methodDetail?: string) {
     if (!orderId || paySelection.size === 0) return;
     setPaying(true);
     setError(null);
     const res = await fetch(`/api/panel/orders/${orderId}/pay`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // Çift tıklama / yeniden deneme çift ödeme oluşturmasın
+      headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
       body: JSON.stringify({
         method,
+        methodDetail,
         itemPayments: [...paySelection.entries()].map(([itemId, quantity]) => ({
           itemId,
           quantity,
@@ -251,6 +261,7 @@ export function TableDetail({
       const data = await res.json();
       setPaySelection(new Map());
       if (data.orderClosed) setPayMode(false);
+      setPayExtra(null);
       load();
     } else {
       const data = await res.json().catch(() => null);
@@ -260,7 +271,7 @@ export function TableDetail({
   }
 
   const hasOpenOrder = (items?.length ?? 0) > 0;
-  const canAddOrder = orderMode === "WAITER_ONLY";
+  const canAddOrder = waiterOrderingEnabled(orderMode);
 
   return (
     <div className="space-y-5">
@@ -442,6 +453,26 @@ export function TableDetail({
                     Kart Al
                   </Button>
                   <Button
+                    variant="secondary"
+                    disabled={totals.selected === 0 || paying}
+                    onClick={() => {
+                      setPayExtra(payExtra === "MEAL_CARD" ? null : "MEAL_CARD");
+                      setPayDetail(MEAL_CARD_BRANDS[0]);
+                    }}
+                  >
+                    Yemek Kartı
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={totals.selected === 0 || paying}
+                    onClick={() => {
+                      setPayExtra(payExtra === "OTHER" ? null : "OTHER");
+                      setPayDetail(OTHER_PAYMENT_HINTS[0]);
+                    }}
+                  >
+                    Diğer
+                  </Button>
+                  <Button
                     variant="ghost"
                     onClick={() => {
                       setPayMode(false);
@@ -450,6 +481,27 @@ export function TableDetail({
                   >
                     Vazgeç
                   </Button>
+                  {payExtra && (
+                    <div className="flex basis-full flex-wrap items-center gap-2 rounded-lg border border-ink-line p-3">
+                      <span className="text-sm text-cream-dim">
+                        {payExtra === "MEAL_CARD" ? "Kart markası:" : "Ödeme türü:"}
+                      </span>
+                      <select
+                        value={payDetail}
+                        onChange={(e) => setPayDetail(e.target.value)}
+                        className="min-h-11 rounded-lg border border-ink-line bg-ink-soft px-3 text-sm text-cream"
+                      >
+                        {(payExtra === "MEAL_CARD" ? MEAL_CARD_BRANDS : OTHER_PAYMENT_HINTS).map((b) => (
+                          <option key={b} value={b}>
+                            {b}
+                          </option>
+                        ))}
+                      </select>
+                      <Button disabled={totals.selected === 0 || paying} onClick={() => pay(payExtra, payDetail)}>
+                        {formatKurus(totals.selected)} tahsil et
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <Button onClick={() => setPayMode(true)}>Ödeme Al</Button>

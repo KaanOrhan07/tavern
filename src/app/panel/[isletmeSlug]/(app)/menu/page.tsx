@@ -4,6 +4,8 @@ import { getPanelSessionFor } from "@/lib/auth";
 import { requireRestaurantModule } from "@/lib/panel-module-guard";
 import { isFeatureEnabled } from "@/lib/features";
 import { MenuManager } from "@/components/panel/MenuManager";
+import { LabelsReview, type LabelProduct } from "@/components/panel/LabelsReview";
+import { mapAllergenText, suggestFlagsFromIngredients } from "@/lib/allergens";
 import { toDisplayImageUrl } from "@/lib/storage-url";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +29,7 @@ export default async function MenuPage({
         products: {
           orderBy: { name: "asc" },
           include: {
-            recipeItems: true,
+            recipeItems: { include: { ingredient: { select: { name: true } } } },
             variants: { orderBy: { sortOrder: "asc" } },
           },
         },
@@ -40,7 +42,34 @@ export default async function MenuPage({
     isFeatureEnabled(session.businessId, "product_variants"),
   ]);
 
+  const labelProducts: LabelProduct[] = categories.flatMap((c) =>
+    c.products.map((p) => {
+      const recipeNames = p.recipeItems.map((r) => r.ingredient.name);
+      const flags = suggestFlagsFromIngredients(recipeNames);
+      return {
+        id: p.id,
+        name: p.name,
+        categoryName: c.name,
+        calories: p.calories,
+        allergenKeys: p.allergenKeys.length > 0 ? p.allergenKeys : mapAllergenText(p.allergens),
+        vegan: p.vegan,
+        vegetarian: p.vegetarian,
+        glutenFree: p.glutenFree,
+        containsAlcohol: p.containsAlcohol,
+        containsPork: p.containsPork,
+        ingredientsText: p.ingredientsText,
+        recipeNames,
+        aiApproved: p.aiApproved,
+        aiPending: p.aiPending,
+        suggestAlcohol: flags.alcohol,
+        suggestPork: flags.pork,
+      };
+    })
+  );
+
   return (
+    <div className="space-y-6">
+    <LabelsReview products={labelProducts} />
     <MenuManager
       variantsEnabled={variantsEnabled}
       categories={categories.map((c) => ({
@@ -78,5 +107,6 @@ export default async function MenuPage({
         unit: i.unit,
       }))}
     />
+    </div>
   );
 }

@@ -45,6 +45,7 @@ export default async function PanelAppLayout({
   return (
     <PanelShell
       slug={isletmeSlug}
+      businessId={business.id}
       businessName={business.name}
       businessTypeKey={business.type.key}
       role={session.role}

@@ -218,6 +218,9 @@ export type BusinessHistoryItem = {
   title: string;
   amountLabel: string | null;
   status: string;
+  // 3.1.0: randevu aksiyonları (yalnızca kind === "appointment")
+  cancelToken?: string;
+  proposedStartAt?: string | null;
 };
 
 export async function getBusinessHistoryForCustomer(params: {
@@ -232,6 +235,7 @@ export async function getBusinessHistoryForCustomer(params: {
       name: true,
       slug: true,
       logoUrl: true,
+      googleReviewUrl: true,
       type: { select: { key: true } },
     },
   });
@@ -303,6 +307,8 @@ export async function getBusinessHistoryForCustomer(params: {
       title: `${a.service.name} · ${a.staff.name}`,
       amountLabel: formatKurus(a.service.priceKurus),
       status: a.status,
+      cancelToken: a.cancelToken,
+      proposedStartAt: a.proposedStartAt ? a.proposedStartAt.toISOString() : null,
     });
   }
 
@@ -315,6 +321,7 @@ export async function getBusinessHistoryForCustomer(params: {
       slug: business.slug,
       logoUrl: business.logoUrl ? toDisplayImageUrl(business.logoUrl) : null,
       isBarber: isBarberBusiness(business.type.key),
+      googleReviewUrl: business.googleReviewUrl,
     },
     stats: stats
       ? {

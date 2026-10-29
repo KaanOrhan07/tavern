@@ -41,6 +41,7 @@ export default async function CustomerTablePage({
       dailyProduct={menuData.dailyProduct}
       suggestionEnabled={menuData.suggestionEnabled}
       loyaltyEnabled={menuData.loyaltyEnabled}
+      allergenNote={menuData.allergenNote}
     />
   );
 }
